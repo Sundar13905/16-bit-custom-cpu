@@ -1,0 +1,124 @@
+$date
+	Sun Nov 09 09:02:26 2025
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module fpu_tb $end
+$var wire 16 ! result [15:0] $end
+$var reg 16 " a [15:0] $end
+$var reg 16 # b [15:0] $end
+$var reg 1 $ enable $end
+$var reg 4 % opcode [3:0] $end
+$scope module DUT $end
+$var wire 16 & a [15:0] $end
+$var wire 16 ' b [15:0] $end
+$var wire 1 $ enable $end
+$var wire 4 ( opcode [3:0] $end
+$var wire 16 ) sub_result [15:0] $end
+$var wire 16 * mul_result [15:0] $end
+$var wire 16 + add_result [15:0] $end
+$var reg 16 , result [15:0] $end
+$scope module ADDER_U $end
+$var wire 16 - a [15:0] $end
+$var wire 16 . b [15:0] $end
+$var wire 16 / result [15:0] $end
+$upscope $end
+$scope module MULT_U $end
+$var wire 16 0 a [15:0] $end
+$var wire 16 1 b [15:0] $end
+$var wire 16 2 result [15:0] $end
+$upscope $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b0 2
+b0 1
+b0 0
+b0 /
+b0 .
+b0 -
+b0 ,
+b0 +
+b0 *
+b0 )
+b0 (
+b0 '
+b0 &
+b0 %
+0$
+b0 #
+b0 "
+b0 !
+$end
+#10000
+b111110000000000 !
+b111110000000000 ,
+b100000000000000 #
+b100000000000000 '
+b100000000000000 .
+b100000000000000 1
+b1111110000000000 )
+b111110000000000 +
+b111110000000000 /
+b11110000000000 "
+b11110000000000 &
+b11110000000000 -
+b11110000000000 0
+1$
+#20000
+b11000000000 !
+b11000000000 ,
+b1 %
+b1 (
+b11110000000000 #
+b11110000000000 '
+b11110000000000 .
+b11110000000000 1
+b11000000000 )
+b111111000000000 +
+b111111000000000 /
+b100001000000000 "
+b100001000000000 &
+b100001000000000 -
+b100001000000000 0
+#30000
+b0 !
+b0 ,
+b10 %
+b10 (
+b10000000000 )
+b111110000000000 +
+b111110000000000 /
+b100000000000000 "
+b100000000000000 &
+b100000000000000 -
+b100000000000000 0
+#40000
+b11110000000000 !
+b11110000000000 ,
+b11 %
+b11 (
+b0 #
+b0 '
+b0 .
+b0 1
+b11110000000000 )
+b11110000000000 +
+b11110000000000 /
+b11110000000000 "
+b11110000000000 &
+b11110000000000 -
+b11110000000000 0
+#50000
+b0 !
+b0 ,
+b0 %
+b0 (
+0$
+#60000

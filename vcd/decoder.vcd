@@ -1,0 +1,78 @@
+$date
+	Sat Nov 08 21:08:47 2025
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module decoder_tb $end
+$var wire 1 ! reg_write $end
+$var wire 1 " mem_write $end
+$var wire 1 # mem_read $end
+$var wire 1 $ jump $end
+$var wire 1 % branch $end
+$var wire 1 & alu_src $end
+$var wire 4 ' alu_ctrl [3:0] $end
+$var reg 16 ( instr [15:0] $end
+$scope module DUT $end
+$var wire 16 ) instr [15:0] $end
+$var wire 4 * opcode [3:0] $end
+$var reg 4 + alu_ctrl [3:0] $end
+$var reg 1 & alu_src $end
+$var reg 1 % branch $end
+$var reg 1 $ jump $end
+$var reg 1 # mem_read $end
+$var reg 1 " mem_write $end
+$var reg 1 ! reg_write $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b0 +
+b0 *
+b0 )
+b0 (
+b0 '
+0&
+0%
+0$
+0#
+0"
+1!
+$end
+#10000
+1&
+1#
+1!
+b1000 *
+b1000000000000000 (
+b1000000000000000 )
+#20000
+1"
+1&
+0#
+0!
+b1001 *
+b1001000000000000 (
+b1001000000000000 )
+#30000
+1%
+b1 '
+b1 +
+0&
+0"
+b1010 *
+b1010000000000000 (
+b1010000000000000 )
+#40000
+1$
+0%
+b0 '
+b0 +
+b1011 *
+b1011000000000000 (
+b1011000000000000 )
+#50000

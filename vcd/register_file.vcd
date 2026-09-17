@@ -1,0 +1,83 @@
+$date
+	Sun Nov 09 08:27:07 2025
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module register_file_tb $end
+$var wire 16 ! rd_data2 [15:0] $end
+$var wire 16 " rd_data1 [15:0] $end
+$var reg 1 # clk $end
+$var reg 3 $ rd_addr1 [2:0] $end
+$var reg 3 % rd_addr2 [2:0] $end
+$var reg 3 & wr_addr [2:0] $end
+$var reg 16 ' wr_data [15:0] $end
+$var reg 1 ( wr_en $end
+$scope module RF $end
+$var wire 1 # clk $end
+$var wire 3 ) rd_addr1 [2:0] $end
+$var wire 3 * rd_addr2 [2:0] $end
+$var wire 16 + rd_data1 [15:0] $end
+$var wire 16 , rd_data2 [15:0] $end
+$var wire 3 - wr_addr [2:0] $end
+$var wire 16 . wr_data [15:0] $end
+$var wire 1 ( wr_en $end
+$var integer 32 / i [31:0] $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b1000 /
+b0 .
+b0 -
+b0 ,
+b0 +
+b0 *
+b0 )
+0(
+b0 '
+b0 &
+b0 %
+b0 $
+0#
+b0 "
+b0 !
+$end
+#5000
+1#
+#10000
+0#
+b1010101010101010 '
+b1010101010101010 .
+b1 &
+b1 -
+1(
+#15000
+1#
+#20000
+0#
+b101010101010101 '
+b101010101010101 .
+b10 &
+b10 -
+#25000
+1#
+#30000
+0#
+b101010101010101 !
+b101010101010101 ,
+b10 %
+b10 *
+b1010101010101010 "
+b1010101010101010 +
+b1 $
+b1 )
+0(
+#35000
+1#
+#40000
+0#

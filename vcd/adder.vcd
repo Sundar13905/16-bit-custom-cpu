@@ -1,0 +1,93 @@
+$date
+	Sat Nov 08 20:51:58 2025
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module tb_adder $end
+$var wire 1 ! z $end
+$var wire 8 " sum [7:0] $end
+$var wire 1 # ovf $end
+$var wire 1 $ cout $end
+$var reg 8 % a [7:0] $end
+$var reg 8 & b [7:0] $end
+$var reg 1 ' cin $end
+$scope module U $end
+$var wire 8 ( a [7:0] $end
+$var wire 8 ) b [7:0] $end
+$var wire 1 ' carry_in $end
+$var wire 1 # overflow $end
+$var wire 1 ! zero $end
+$var wire 8 * sum [7:0] $end
+$var wire 9 + full_sum [8:0] $end
+$var wire 1 $ carry_out $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b0 +
+b0 *
+b0 )
+b0 (
+0'
+b0 &
+b0 %
+0$
+0#
+b0 "
+1!
+$end
+#10000
+1$
+b1 &
+b1 )
+b100000000 +
+b11111111 %
+b11111111 (
+#15000
+1#
+0!
+b10000000 "
+b10000000 *
+0$
+b10000000 +
+b1111111 %
+b1111111 (
+#20000
+1#
+1$
+1!
+b0 "
+b0 *
+b10000000 &
+b10000000 )
+b100000000 +
+b10000000 %
+b10000000 (
+#25000
+0#
+0!
+b100001 "
+b100001 *
+0$
+1'
+b10000 &
+b10000 )
+b100001 +
+b10000 %
+b10000 (
+#30000
+1!
+b0 "
+b0 *
+0'
+b0 &
+b0 )
+b0 +
+b0 %
+b0 (
+#35000

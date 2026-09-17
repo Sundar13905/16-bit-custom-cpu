@@ -1,0 +1,72 @@
+$date
+	Sun Nov 09 01:43:40 2025
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module regfile_tb $end
+$var wire 16 ! read_data2 [15:0] $end
+$var wire 16 " read_data1 [15:0] $end
+$var reg 1 # clk $end
+$var reg 3 $ read_reg1 [2:0] $end
+$var reg 3 % read_reg2 [2:0] $end
+$var reg 1 & reg_write $end
+$var reg 16 ' write_data [15:0] $end
+$var reg 3 ( write_reg [2:0] $end
+$scope module DUT $end
+$var wire 1 # clk $end
+$var wire 16 ) read_data1 [15:0] $end
+$var wire 16 * read_data2 [15:0] $end
+$var wire 3 + read_reg1 [2:0] $end
+$var wire 3 , read_reg2 [2:0] $end
+$var wire 1 & reg_write $end
+$var wire 16 - write_data [15:0] $end
+$var wire 3 . write_reg [2:0] $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b1 .
+b10101010 -
+bx ,
+bx +
+bx *
+bx )
+b1 (
+b10101010 '
+1&
+bx %
+bx $
+0#
+bx "
+bx !
+$end
+#5000
+1#
+#10000
+0#
+b10111011 '
+b10111011 -
+b10 (
+b10 .
+#15000
+1#
+#20000
+0#
+b10111011 !
+b10111011 *
+b10 %
+b10 ,
+b10101010 "
+b10101010 )
+b1 $
+b1 +
+0&
+#25000
+1#
+#30000
+0#

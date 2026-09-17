@@ -1,0 +1,135 @@
+$date
+	Sun Nov 09 10:02:20 2025
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ps
+$end
+$scope module control_unit_tb $end
+$var wire 1 ! reg_write $end
+$var wire 1 " mem_write $end
+$var wire 1 # mem_read $end
+$var wire 1 $ jump $end
+$var wire 4 % fpu_opcode [3:0] $end
+$var wire 1 & fpu_enable $end
+$var wire 1 ' branch $end
+$var wire 1 ( alu_src $end
+$var wire 4 ) alu_ctrl [3:0] $end
+$var reg 3 * funct [2:0] $end
+$var reg 4 + opcode [3:0] $end
+$scope module DUT $end
+$var wire 3 , funct [2:0] $end
+$var wire 4 - opcode [3:0] $end
+$var wire 4 . alu_ctrl [3:0] $end
+$var reg 2 / alu_op [1:0] $end
+$var reg 1 ( alu_src $end
+$var reg 1 ' branch $end
+$var reg 1 & fpu_enable $end
+$var reg 4 0 fpu_opcode [3:0] $end
+$var reg 1 $ jump $end
+$var reg 1 # mem_read $end
+$var reg 1 " mem_write $end
+$var reg 1 ! reg_write $end
+$scope module alu_dec_inst $end
+$var wire 2 1 alu_op [1:0] $end
+$var wire 3 2 funct [2:0] $end
+$var reg 4 3 alu_ctrl [3:0] $end
+$upscope $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b0 3
+b0 2
+b10 1
+b0 0
+b10 /
+b0 .
+b0 -
+b0 ,
+b0 +
+b0 *
+b0 )
+0(
+0'
+0&
+b0 %
+0$
+0#
+0"
+1!
+$end
+#10000
+b1 )
+b1 .
+b1 3
+b1 *
+b1 ,
+b1 2
+#20000
+b0 )
+b0 .
+b0 3
+1(
+b0 /
+b0 1
+1!
+b0 *
+b0 ,
+b0 2
+b110 +
+b110 -
+#30000
+b1000 )
+b1000 .
+b1000 3
+b11 /
+b11 1
+1(
+1!
+b111 +
+b111 -
+#40000
+b0 )
+b0 .
+b0 3
+1#
+b0 /
+b0 1
+1(
+1!
+b1000 +
+b1000 -
+#50000
+1"
+1(
+0#
+0!
+b1001 +
+b1001 -
+#60000
+b1 )
+b1 .
+b1 3
+b1 /
+b1 1
+1'
+0(
+0"
+b1010 +
+b1010 -
+#70000
+b0 )
+b0 .
+b0 3
+1!
+1&
+b0 /
+b0 1
+0'
+b1110 +
+b1110 -
+#80000
