@@ -1,0 +1,56 @@
+#! /c/Source/iverilog-install/bin/vvp
+:ivl_version "12.0 (devel)" "(s20150603-1110-g18392a46)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision - 12;
+:vpi_module "D:\iverilog\lib\ivl\system.vpi";
+:vpi_module "D:\iverilog\lib\ivl\vhdl_sys.vpi";
+:vpi_module "D:\iverilog\lib\ivl\vhdl_textio.vpi";
+:vpi_module "D:\iverilog\lib\ivl\v2005_math.vpi";
+:vpi_module "D:\iverilog\lib\ivl\va_math.vpi";
+S_0000021dc7e55a10 .scope module, "instr_mem_tb" "instr_mem_tb" 2 3;
+ .timescale -9 -12;
+v0000021dc7e55dd0_0 .net "instr", 15 0, L_0000021dc7e55e70;  1 drivers
+v0000021dc7e0bd80_0 .var "instr_addr", 15 0;
+S_0000021dc7e55ba0 .scope module, "DUT" "instr_mem" 2 7, 3 6 0, S_0000021dc7e55a10;
+ .timescale -9 -12;
+    .port_info 0 /INPUT 16 "instr_addr";
+    .port_info 1 /OUTPUT 16 "instr";
+L_0000021dc7e55e70 .functor BUFZ 16, L_0000021dc7e0be20, C4<0000000000000000>, C4<0000000000000000>, C4<0000000000000000>;
+v0000021dc7e07700_0 .net *"_ivl_0", 15 0, L_0000021dc7e0be20;  1 drivers
+v0000021dc7e09110_0 .net "instr", 15 0, L_0000021dc7e55e70;  alias, 1 drivers
+v0000021dc7e07030_0 .net "instr_addr", 15 0, v0000021dc7e0bd80_0;  1 drivers
+v0000021dc7e55d30 .array "instr_ram", 511 0, 15 0;
+L_0000021dc7e0be20 .array/port v0000021dc7e55d30, v0000021dc7e0bd80_0;
+    .scope S_0000021dc7e55ba0;
+T_0 ;
+    %vpi_call 3 20 "$readmemh", "rv16i_test.txt", v0000021dc7e55d30 {0 0 0};
+    %end;
+    .thread T_0;
+    .scope S_0000021dc7e55a10;
+T_1 ;
+    %vpi_call 2 13 "$dumpfile", "instr_mem.vcd" {0 0 0};
+    %vpi_call 2 14 "$dumpvars", 32'sb00000000000000000000000000000000, S_0000021dc7e55a10 {0 0 0};
+    %pushi/vec4 0, 0, 16;
+    %store/vec4 v0000021dc7e0bd80_0, 0, 16;
+    %delay 10000, 0;
+    %pushi/vec4 1, 0, 16;
+    %store/vec4 v0000021dc7e0bd80_0, 0, 16;
+    %delay 10000, 0;
+    %pushi/vec4 2, 0, 16;
+    %store/vec4 v0000021dc7e0bd80_0, 0, 16;
+    %delay 10000, 0;
+    %pushi/vec4 3, 0, 16;
+    %store/vec4 v0000021dc7e0bd80_0, 0, 16;
+    %delay 10000, 0;
+    %pushi/vec4 4, 0, 16;
+    %store/vec4 v0000021dc7e0bd80_0, 0, 16;
+    %delay 10000, 0;
+    %vpi_call 2 22 "$finish" {0 0 0};
+    %end;
+    .thread T_1;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "instr_mem_tb.v.txt";
+    "instr_mem.v.txt";
