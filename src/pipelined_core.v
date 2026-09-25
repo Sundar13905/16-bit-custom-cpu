@@ -100,7 +100,7 @@ module pipelined_core(
     wire [2:0]  wb_write_addr;
     wire        wb_reg_write_en;
 
-    register_file regfile_inst (
+    regfile regfile_inst (
         .clk(clk),
         .wr_en(wb_reg_write_en),
         .rd_addr1(rs1),
@@ -176,7 +176,7 @@ module pipelined_core(
         .a(ex_alu_src1),
         .b(ex_alu_src2),
         .alu_ctrl(idex_alu_ctrl),
-        .result(ex_alu_result),
+        .alu_out(ex_alu_result),
         .zero(ex_alu_zero)
     );
 
@@ -237,7 +237,7 @@ module pipelined_core(
         .clk(clk),
         .mem_read(exmem_mem_read),
         .mem_write(exmem_mem_write),
-        .addr(exmem_result),
+        .address(exmem_result),
         .write_data(exmem_rd_data2),
         .read_data(mem_read_data)
     );
