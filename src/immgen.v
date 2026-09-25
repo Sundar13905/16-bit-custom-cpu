@@ -1,17 +1,64 @@
 `timescale 1ns / 1ps
-//======================================================
-// Immediate Generator for 16-bit Instructions
-//======================================================
+
 module immgen (
-    input  [15:0] instr,
-    output reg [15:0] imm_out
+    input  wire [15:0] instr,
+    output reg  [15:0] imm_out
 );
+
     always @(*) begin
-        case (instr[15:12])
-            4'b0110, 4'b0111: imm_out = {{8{instr[7]}}, instr[7:0]}; // I-type
-            4'b1001:          imm_out = {{8{instr[7]}}, instr[7:0]}; // S-type
-            4'b1010:          imm_out = {{8{instr[7]}}, instr[7:0]}; // B-type
-            default:          imm_out = 16'h0000;
+
+        case (instr[14:12])
+
+            // ==================================================
+            // LH
+            // SH
+            // Immediate arithmetic
+            // JALR
+            // ==================================================
+            3'b001,
+            3'b010,
+            3'b011,
+            3'b111: begin
+
+                imm_out = {{12{instr[15]}},
+                           instr[15],
+                           instr[5:3]};
+
+            end
+
+
+            // ==================================================
+            // Branch
+            // ==================================================
+            3'b100: begin
+
+                imm_out = {{12{instr[15]}},
+                           instr[15],
+                           instr[5:3]};
+
+            end
+
+
+            // ==================================================
+            // JAL
+            // ==================================================
+            3'b101: begin
+
+                imm_out = {{12{instr[15]}},
+                           instr[15],
+                           instr[5:3]};
+
+            end
+
+
+            default: begin
+
+                imm_out = 16'h0000;
+
+            end
+
         endcase
+
     end
+
 endmodule
