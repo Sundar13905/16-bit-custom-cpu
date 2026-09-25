@@ -1,87 +1,154 @@
 `timescale 1ns / 1ps
 
-module datapath(
-    input clk,
-    input reset,
-    // Control signals from control unit
-    input reg_write,
-    input mem_read,
-    input mem_write,
-    input alu_src,
-    input branch,
-    input jump,
-    input [3:0] alu_ctrl,
-    output zero,
-    // Connection to instruction memory
-    output [15:0] pc_out,
-    input [15:0] instr
+module decoder (
+
+    input wire [15:0] instr,
+
+    output reg [3:0] alu_ctrl,
+
+    output reg reg_write,
+    output reg mem_read,
+    output reg mem_write,
+
+    output reg branch,
+    output reg jump,
+
+    output reg alu_src
+
 );
 
-    // Internal wires
-    wire [15:0] read_data1, read_data2;
-    wire [15:0] write_data;
-    wire [15:0] alu_b_input;
-    wire [15:0] alu_result;
-    wire [15:0] mem_data;
+    wire [2:0] opcode;
+    wire [2:0] funct;
 
-    // ────────────────
-    // Register File
-    // ────────────────
-    register_file RF (
-        .clk(clk),
-        .wr_en(reg_write),
-        .rd_addr1(instr[11:9]),   // rs
-        .rd_addr2(instr[8:6]),    // rt
-        .wr_addr(instr[5:3]),     // rd
-        .wr_data(write_data),
-        .rd_data1(read_data1),
-        .rd_data2(read_data2)
-    );
+    assign opcode = instr[14:12];
+    assign funct  = instr[2:0];
 
-    // ────────────────
-    // ALU Input MUX
-    // ────────────────
-    assign alu_b_input = (alu_src) ? {10'b0, instr[5:0]} : read_data2;
 
-    // ────────────────
-    // ALU
-    // ────────────────
-    alu #(.WIDTH(16)) ALU_U (
-        .a(read_data1),
-        .b(alu_b_input),
-        .alu_ctrl(alu_ctrl),
-        .alu_out(alu_result),
-        .zero(zero)
-    );
+    always @(*) begin
 
-    // ────────────────
-    // Data Memory
-    // ────────────────
-    data_mem DMEM (
-        .clk(clk),
-        .mem_read(mem_read),
-        .mem_write(mem_write),
-        .address(alu_result),
-        .write_data(read_data2),
-        .read_data(mem_data)
-    );
+        alu_ctrl  = 4'b0000;
 
-    // ────────────────
-    // Write Back MUX
-    // ────────────────
-    assign write_data = (mem_read) ? mem_data : alu_result;
+        reg_write = 1'b0;
+        mem_read  = 1'b0;
+        mem_write = 1'b0;
 
-    // ────────────────
-    // PC (Program Counter)
-    // ────────────────
-    reg [15:0] pc_reg;
-    always @(posedge clk or posedge reset) begin
-        if (reset)
-            pc_reg <= 16'b0;
-        else
-            pc_reg <= pc_reg + 16'd2;  // increment by instruction size (2 bytes)
+        branch    = 1'b0;
+        jump      = 1'b0;
+
+        alu_src   = 1'b0;
+
+
+        case (opcode)
+
+            // R-type
+            3'b000: begin
+
+                reg_write = 1'b1;
+
+                case (funct)
+
+                    3'b000: alu_ctrl = 4'b0000; // ADD
+                    3'b001: alu_ctrl = 4'b0001; // SUB
+                    3'b010: alu_ctrl = 4'b1000; // SLT
+                    3'b011: alu_ctrl = 4'b0110; // SRL
+                    3'b100: alu_ctrl = 4'b0011; // OR
+                    3'b101: alu_ctrl = 4'b0101; // SLL
+                    3'b110: alu_ctrl = 4'b0010; // AND
+                    3'b111: alu_ctrl = 4'b0111; // SRA
+
+                    default:
+                        alu_ctrl = 4'b0000;
+
+                endcase
+
+            end
+
+
+            // LH
+            3'b001: begin
+
+                reg_write = 1'b1;
+                mem_read  = 1'b1;
+                alu_src   = 1'b1;
+                alu_ctrl  = 4'b0000;
+
+            end
+
+
+            // SH
+            3'b010: begin
+
+                mem_write = 1'b1;
+                alu_src   = 1'b1;
+                alu_ctrl  = 4'b0000;
+
+            end
+
+
+            // Immediate
+            3'b011: begin
+
+                reg_write = 1'b1;
+                alu_src   = 1'b1;
+
+                case (funct)
+
+                    3'b000: alu_ctrl = 4'b0000; // ADDI
+                    3'b001: alu_ctrl = 4'b0001; // SUBI
+                    3'b010: alu_ctrl = 4'b1000; // SLTI
+                    3'b011: alu_ctrl = 4'b0110; // SRLI
+                    3'b100: alu_ctrl = 4'b0011; // ORI
+                    3'b101: alu_ctrl = 4'b0101; // SLLI
+                    3'b110: alu_ctrl = 4'b0010; // ANDI
+                    3'b111: alu_ctrl = 4'b0111; // SRAI
+
+                    default:
+                        alu_ctrl = 4'b0000;
+
+                endcase
+
+            end
+
+
+            // Branch
+            3'b100: begin
+
+                branch   = 1'b1;
+                alu_ctrl = 4'b0001;
+
+            end
+
+
+            // JAL
+            3'b101: begin
+
+                jump = 1'b1;
+
+            end
+
+
+            // FPU
+            3'b110: begin
+
+                reg_write = 1'b1;
+
+            end
+
+
+            // JALR
+            3'b111: begin
+
+                jump     = 1'b1;
+                alu_src  = 1'b1;
+
+            end
+
+
+            default: begin
+            end
+
+        endcase
+
     end
-
-    assign pc_out = pc_reg;
 
 endmodule
