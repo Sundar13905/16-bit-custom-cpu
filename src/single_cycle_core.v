@@ -201,6 +201,7 @@ module single_cycle_core (
     regfile RF (
 
         .clk        (clk),
+        .rst (rst),
         .reg_write  (reg_write),
 
         .read_reg1  (rf_read_addr1),
