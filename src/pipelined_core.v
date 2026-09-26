@@ -1,277 +1,624 @@
 `timescale 1ns / 1ps
-//======================================================================
-// 16-bit Pipelined RISC Core
-//---------------------------------------------------------------------
-// Pipeline stages: IF | ID | EX | MEM | WB
-// Compatible with the provided ALU, FPU, Control Unit, Register File,
-// and Memory modules.
-//======================================================================
 
-module pipelined_core(
-    input  clk,
-    input  rst
+module pipelined_core (
+    input wire clk,
+    input wire rst
 );
 
-    //------------------------------------------------------------
-    // IF Stage: Instruction Fetch
-    //------------------------------------------------------------
-    wire [15:0] pc_current;
-    wire [15:0] pc_next;
-    wire [15:0] instruction;
+    // ==========================================================
+    // HAZARD CONTROL
+    // ==========================================================
 
-    // Program Counter
-    pc pc_inst (
-        .clk(clk),
-        .rst(rst),
-        .pc_in(pc_next),
-        .pc_out(pc_current)
+    wire hazard_pc_stall;
+    wire hazard_if_id_stall;
+    wire hazard_id_ex_flush;
+
+    // ==========================================================
+    // PC / IF STAGE
+    // ==========================================================
+
+    wire [15:0] pc_out;
+    wire [15:0] next_pc;
+    wire [15:0] instr;
+
+    // ==========================================================
+    // CONTROL-FLOW SIGNALS
+    // ==========================================================
+
+    wire ex_branch_taken;
+    wire [15:0] ex_branch_target;
+
+    wire ex_jump_taken;
+    wire [15:0] ex_jump_target;
+
+    wire ex_control_taken;
+
+    // ==========================================================
+    // NEXT PC
+    // ==========================================================
+
+    assign next_pc =
+        hazard_pc_stall ?
+            pc_out :
+        ex_branch_taken ?
+            ex_branch_target :
+        ex_jump_taken ?
+            ex_jump_target :
+            pc_out + 16'd1;
+
+    pc PC_U (
+        .clk    (clk),
+        .rst    (rst),
+        .pc_in  (next_pc),
+        .pc_out (pc_out)
     );
 
-    // Instruction Memory
-    instr_mem instr_mem_inst (
-        .instr_addr(pc_current),
-        .instr(instruction)
+    instr_mem IMEM (
+        .instr_addr (pc_out),
+        .instr      (instr)
     );
 
-    // Next PC = PC + 1
-    assign pc_next = pc_current + 16'd1;
 
-    //------------------------------------------------------------
-    // IF/ID Pipeline Register
-    //------------------------------------------------------------
-    reg [15:0] ifid_pc;
-    reg [15:0] ifid_instr;
+    // ==========================================================
+    // IF/ID PIPELINE REGISTER
+    // ==========================================================
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            ifid_pc    <= 16'h0000;
-            ifid_instr <= 16'h0000;
-        end else begin
-            ifid_pc    <= pc_current;
-            ifid_instr <= instruction;
-        end
-    end
+    wire [15:0] if_id_pc;
+    wire [15:0] if_id_pc_plus1;
+    wire [15:0] if_id_instr;
 
-    //------------------------------------------------------------
-    // ID Stage: Instruction Decode
-    //------------------------------------------------------------
-    wire [3:0] opcode = ifid_instr[15:12];
-    wire [2:0] rd     = ifid_instr[11:9];
-    wire [2:0] rs1    = ifid_instr[8:6];
-    wire [2:0] rs2    = ifid_instr[5:3];
-    wire [2:0] funct  = ifid_instr[2:0];
-    wire [15:0] imm;
+    if_id_reg IF_ID (
+        .clk          (clk),
+        .rst_n        (~rst),
+        .stall        (hazard_if_id_stall),
+        .flush        (ex_control_taken),
 
-    // Immediate Generator
-    immgen immgen_inst (
-        .instr(ifid_instr),
-        .imm_out(imm)
+        .pc_in        (pc_out),
+        .pc_plus1_in  (pc_out + 16'd1),
+        .instr_in     (instr),
+
+        .pc_out       (if_id_pc),
+        .pc_plus1_out (if_id_pc_plus1),
+        .instr_out    (if_id_instr)
     );
 
-    // Control Unit
-    wire reg_write_en;
-    wire mem_read_en;
-    wire mem_write_en;
-    wire alu_src_sel;
-    wire branch_en;
-    wire jump_en;
-    wire [3:0] alu_ctrl_sig;
-    wire fpu_enable_sig;
-    wire [3:0] fpu_op_sig;
 
-    control_unit control_inst (
-        .opcode(opcode),
-        .funct(funct),
-        .reg_write(reg_write_en),
-        .mem_read(mem_read_en),
-        .mem_write(mem_write_en),
-        .alu_src(alu_src_sel),
-        .branch(branch_en),
-        .jump(jump_en),
-        .alu_ctrl(alu_ctrl_sig),
-        .fpu_enable(fpu_enable_sig),
-        .fpu_opcode(fpu_op_sig)
+    // ==========================================================
+    // ID STAGE
+    // ==========================================================
+
+    wire [2:0] id_opcode;
+    wire [2:0] id_funct;
+
+    assign id_opcode = if_id_instr[14:12];
+    assign id_funct  = if_id_instr[2:0];
+
+
+    // ----------------------------------------------------------
+    // Register addresses
+    // ----------------------------------------------------------
+
+    wire [2:0] id_rf_read_addr1;
+    wire [2:0] id_rf_read_addr2;
+    wire [2:0] id_rf_write_addr;
+
+    assign id_rf_read_addr1 =
+        id_opcode == 3'b000 ? if_id_instr[8:6]  :   // R-type
+        id_opcode == 3'b001 ? if_id_instr[8:6]  :   // LH
+        id_opcode == 3'b010 ? if_id_instr[8:6]  :   // SH
+        id_opcode == 3'b011 ? if_id_instr[8:6]  :   // I-type
+        id_opcode == 3'b100 ? if_id_instr[11:9] :   // Branch
+        id_opcode == 3'b110 ? if_id_instr[8:6]  :   // FPU
+        id_opcode == 3'b111 ? if_id_instr[8:6]  :   // JALR
+                                      3'b000;
+
+    assign id_rf_read_addr2 =
+        id_opcode == 3'b000 ? if_id_instr[5:3]  :   // R-type
+        id_opcode == 3'b010 ? if_id_instr[11:9] :   // SH
+        id_opcode == 3'b100 ? if_id_instr[8:6]  :   // Branch
+        id_opcode == 3'b110 ? if_id_instr[5:3]  :   // FPU
+                                      3'b000;
+
+    assign id_rf_write_addr =
+        id_opcode == 3'b000 ? if_id_instr[11:9] :
+        id_opcode == 3'b001 ? if_id_instr[11:9] :
+        id_opcode == 3'b011 ? if_id_instr[11:9] :
+        id_opcode == 3'b101 ? if_id_instr[11:9] :
+        id_opcode == 3'b110 ? if_id_instr[11:9] :
+        id_opcode == 3'b111 ? if_id_instr[11:9] :
+                                      3'b000;
+
+
+    // ----------------------------------------------------------
+    // Control
+    // ----------------------------------------------------------
+
+    wire       id_reg_write;
+    wire       id_mem_read;
+    wire       id_mem_write;
+    wire       id_alu_src;
+
+    wire       id_branch;
+    wire [1:0] id_branch_type;
+
+    wire       id_jump;
+    wire       id_jalr;
+
+    wire [3:0] id_alu_ctrl;
+
+    wire       id_fpu_enable;
+    wire [3:0] id_fpu_opcode;
+
+    wire [1:0] id_wb_select;
+
+    // WB select:
+    // 00 = ALU/FPU result
+    // 01 = memory data
+    // 10 = PC + 1 (JAL/JALR)
+
+    assign id_wb_select =
+        id_mem_read ? 2'b01 :
+        id_jump     ? 2'b10 :
+                      2'b00;
+
+
+    control_unit CTRL (
+        .opcode      (id_opcode),
+        .funct       (id_funct),
+
+        .reg_write   (id_reg_write),
+        .mem_read    (id_mem_read),
+        .mem_write   (id_mem_write),
+        .alu_src     (id_alu_src),
+
+        .branch      (id_branch),
+        .branch_type (id_branch_type),
+
+        .jump        (id_jump),
+        .jalr        (id_jalr),
+
+        .alu_ctrl    (id_alu_ctrl),
+
+        .fpu_enable  (id_fpu_enable),
+        .fpu_opcode  (id_fpu_opcode)
     );
 
+
+    // ----------------------------------------------------------
     // Register File
-    wire [15:0] reg_data1;
-    wire [15:0] reg_data2;
+    // ----------------------------------------------------------
+
+    wire [15:0] id_rd_data1;
+    wire [15:0] id_rd_data2;
+
     wire [15:0] wb_write_data;
-    wire [2:0]  wb_write_addr;
-    wire        wb_reg_write_en;
+    wire        wb_reg_write;
 
-    regfile regfile_inst (
-        .clk(clk),
-        .wr_en(wb_reg_write_en),
-        .rd_addr1(rs1),
-        .rd_addr2(rs2),
-        .wr_addr(wb_write_addr),
-        .wr_data(wb_write_data),
-        .rd_data1(reg_data1),
-        .rd_data2(reg_data2)
+    regfile RF (
+        .clk        (clk),
+        .rst        (rst),
+
+        .reg_write  (wb_reg_write),
+
+        .read_reg1  (id_rf_read_addr1),
+        .read_reg2  (id_rf_read_addr2),
+
+        .write_reg  (mem_wb_rd),
+        .write_data (wb_write_data),
+
+        .read_data1 (id_rd_data1),
+        .read_data2 (id_rd_data2)
     );
 
-    //------------------------------------------------------------
-    // ID/EX Pipeline Register
-    //------------------------------------------------------------
-    reg [15:0] idex_pc;
-    reg [15:0] idex_rd_data1;
-    reg [15:0] idex_rd_data2;
-    reg [15:0] idex_imm;
-    reg [2:0]  idex_rd;
-    reg [3:0]  idex_alu_ctrl;
-    reg        idex_reg_write;
-    reg        idex_mem_read;
-    reg        idex_mem_write;
-    reg        idex_alu_src;
-    reg        idex_branch;
-    reg        idex_jump;
-    reg        idex_fpu_enable;
-    reg [3:0]  idex_fpu_op;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            idex_pc          <= 16'h0000;
-            idex_rd_data1    <= 16'h0000;
-            idex_rd_data2    <= 16'h0000;
-            idex_imm         <= 16'h0000;
-            idex_rd          <= 3'b000;
-            idex_alu_ctrl    <= 4'b0000;
-            idex_reg_write   <= 1'b0;
-            idex_mem_read    <= 1'b0;
-            idex_mem_write   <= 1'b0;
-            idex_alu_src     <= 1'b0;
-            idex_branch      <= 1'b0;
-            idex_jump        <= 1'b0;
-            idex_fpu_enable  <= 1'b0;
-            idex_fpu_op      <= 4'b0000;
-        end else begin
-            idex_pc          <= ifid_pc;
-            idex_rd_data1    <= reg_data1;
-            idex_rd_data2    <= reg_data2;
-            idex_imm         <= imm;
-            idex_rd          <= rd;
-            idex_alu_ctrl    <= alu_ctrl_sig;
-            idex_reg_write   <= reg_write_en;
-            idex_mem_read    <= mem_read_en;
-            idex_mem_write   <= mem_write_en;
-            idex_alu_src     <= alu_src_sel;
-            idex_branch      <= branch_en;
-            idex_jump        <= jump_en;
-            idex_fpu_enable  <= fpu_enable_sig;
-            idex_fpu_op      <= fpu_op_sig;
-        end
-    end
+    // ----------------------------------------------------------
+    // Immediate Generator
+    // ----------------------------------------------------------
 
-    //------------------------------------------------------------
-    // EX Stage: ALU + FPU
-    //------------------------------------------------------------
-    wire [15:0] ex_alu_src1 = idex_rd_data1;
-    wire [15:0] ex_alu_src2 = (idex_alu_src) ? idex_imm : idex_rd_data2;
-    wire [15:0] ex_alu_result;
-    wire        ex_alu_zero;
+    wire [15:0] id_imm;
 
-    // Integer ALU
-    alu alu_inst (
-        .a(ex_alu_src1),
-        .b(ex_alu_src2),
-        .alu_ctrl(idex_alu_ctrl),
-        .alu_out(ex_alu_result),
-        .zero(ex_alu_zero)
+    immgen IMMGEN (
+        .instr   (if_id_instr),
+        .imm_out (id_imm)
     );
 
-    // Floating-Point Unit
+
+    // ==========================================================
+    // HAZARD UNIT
+    // ==========================================================
+
+    hazard_unit HAZARD_UNIT (
+        .id_ex_mem_read (id_ex_mem_read),
+        .id_ex_rd       (id_ex_rd),
+
+        .if_id_rs1      (id_rf_read_addr1),
+        .if_id_rs2      (id_rf_read_addr2),
+
+        .pc_stall       (hazard_pc_stall),
+        .if_id_stall    (hazard_if_id_stall),
+        .id_ex_flush    (hazard_id_ex_flush)
+    );
+
+
+    // ==========================================================
+    // ID/EX PIPELINE REGISTER
+    // ==========================================================
+
+    wire [15:0] id_ex_pc;
+    wire [15:0] id_ex_pc_plus1;
+
+    wire [15:0] id_ex_rs1_data;
+    wire [15:0] id_ex_rs2_data;
+    wire [15:0] id_ex_imm;
+
+    wire [2:0] id_ex_rs1;
+    wire [2:0] id_ex_rs2;
+    wire [2:0] id_ex_rd;
+
+    wire [3:0] id_ex_alu_control;
+
+    wire       id_ex_alu_src;
+    wire       id_ex_mem_read;
+    wire       id_ex_mem_write;
+    wire       id_ex_reg_write;
+
+    wire [1:0] id_ex_wb_select;
+
+    wire       id_ex_branch;
+    wire [1:0] id_ex_branch_type;
+
+    wire       id_ex_jump;
+    wire       id_ex_jalr;
+
+    wire       id_ex_fpu_enable;
+    wire [3:0] id_ex_fpu_opcode;
+
+
+    id_ex_reg ID_EX (
+        .clk             (clk),
+        .rst_n           (~rst),
+
+        .flush           (hazard_id_ex_flush || ex_control_taken),
+
+        .pc_in           (if_id_pc),
+        .pc_plus1_in     (if_id_pc_plus1),
+
+        .rs1_data_in     (id_rd_data1),
+        .rs2_data_in     (id_rd_data2),
+
+        .imm_in          (id_imm),
+
+        .rs1_in          (id_rf_read_addr1),
+        .rs2_in          (id_rf_read_addr2),
+        .rd_in           (id_rf_write_addr),
+
+        .alu_control_in  (id_alu_ctrl),
+        .alu_src_in      (id_alu_src),
+
+        .mem_read_in     (id_mem_read),
+        .mem_write_in    (id_mem_write),
+
+        .reg_write_in    (id_reg_write),
+        .wb_select_in    (id_wb_select),
+
+        .branch_in       (id_branch),
+        .branch_type_in  (id_branch_type),
+
+        .jump_in         (id_jump),
+        .jalr_in         (id_jalr),
+
+        .fpu_enable_in   (id_fpu_enable),
+        .fpu_opcode_in   (id_fpu_opcode),
+
+        .pc_out          (id_ex_pc),
+        .pc_plus1_out    (id_ex_pc_plus1),
+
+        .rs1_data_out    (id_ex_rs1_data),
+        .rs2_data_out    (id_ex_rs2_data),
+
+        .imm_out         (id_ex_imm),
+
+        .rs1_out         (id_ex_rs1),
+        .rs2_out         (id_ex_rs2),
+        .rd_out          (id_ex_rd),
+
+        .alu_control_out (id_ex_alu_control),
+        .alu_src_out     (id_ex_alu_src),
+
+        .mem_read_out    (id_ex_mem_read),
+        .mem_write_out   (id_ex_mem_write),
+
+        .reg_write_out   (id_ex_reg_write),
+        .wb_select_out   (id_ex_wb_select),
+
+        .branch_out      (id_ex_branch),
+        .branch_type_out (id_ex_branch_type),
+
+        .jump_out        (id_ex_jump),
+        .jalr_out        (id_ex_jalr),
+
+        .fpu_enable_out  (id_ex_fpu_enable),
+        .fpu_opcode_out  (id_ex_fpu_opcode)
+    );
+
+
+    // ==========================================================
+    // FORWARDING UNIT
+    // ==========================================================
+
+    wire [1:0] forward_a;
+    wire [1:0] forward_b;
+
+    forwarding_unit FORWARD_UNIT (
+        .id_ex_rs1        (id_ex_rs1),
+        .id_ex_rs2        (id_ex_rs2),
+
+        .ex_mem_rd        (ex_mem_rd),
+        .ex_mem_reg_write (ex_mem_reg_write),
+
+        .mem_wb_rd        (mem_wb_rd),
+        .mem_wb_reg_write (mem_wb_reg_write),
+
+        .forward_a        (forward_a),
+        .forward_b        (forward_b)
+    );
+
+
+    // ==========================================================
+    // EX STAGE
+    // ==========================================================
+
+    wire [15:0] ex_forward_a;
+    wire [15:0] ex_forward_b;
+
+    wire [15:0] ex_alu_b;
+    wire [15:0] ex_alu_out;
+    wire        ex_zero;
+
+
+    // ----------------------------------------------------------
+    // Forwarding MUX for operand A
+    // ----------------------------------------------------------
+
+    assign ex_forward_a =
+        forward_a == 2'b01 ? ex_mem_execution_result :
+        forward_a == 2'b10 ? wb_write_data :
+                             id_ex_rs1_data;
+
+
+    // ----------------------------------------------------------
+    // Forwarding MUX for operand B
+    // ----------------------------------------------------------
+
+    assign ex_forward_b =
+        forward_b == 2'b01 ? ex_mem_execution_result :
+        forward_b == 2'b10 ? wb_write_data :
+                             id_ex_rs2_data;
+
+
+    // ==========================================================
+    // BRANCH DECISION
+    // ==========================================================
+
+    assign ex_branch_taken =
+        id_ex_branch &&
+        (
+            (id_ex_branch_type == 2'b00 &&
+             (ex_forward_a == ex_forward_b)) ||
+
+            (id_ex_branch_type == 2'b01 &&
+             (ex_forward_a != ex_forward_b)) ||
+
+            (id_ex_branch_type == 2'b10 &&
+             ($signed(ex_forward_a) < $signed(ex_forward_b))) ||
+
+            (id_ex_branch_type == 2'b11 &&
+             ($signed(ex_forward_a) >= $signed(ex_forward_b)))
+        );
+
+    assign ex_branch_target =
+        id_ex_pc + id_ex_imm;
+
+
+    // ==========================================================
+    // JUMP DECISION
+    // ==========================================================
+
+    assign ex_jump_taken =
+        id_ex_jump || id_ex_jalr;
+
+
+    // ----------------------------------------------------------
+    // JAL / JALR target
+    // ----------------------------------------------------------
+    //
+    // JAL:
+    //     target = PC + immediate
+    //
+    // JALR:
+    //     target = Rs1 + immediate
+    //
+    // ex_forward_a is used for JALR so that a value produced by
+    // a previous instruction can be forwarded into the target
+    // calculation.
+    // ----------------------------------------------------------
+
+    assign ex_jump_target =
+        id_ex_jalr ?
+            (ex_forward_a + id_ex_imm) :
+            (id_ex_pc + id_ex_imm);
+
+
+    // ----------------------------------------------------------
+    // Unified control-flow decision
+    // ----------------------------------------------------------
+
+    assign ex_control_taken =
+        ex_branch_taken || ex_jump_taken;
+
+
+    // ==========================================================
+    // ALU OPERAND B SELECTION
+    // ==========================================================
+
+    assign ex_alu_b =
+        id_ex_alu_src ?
+            id_ex_imm :
+            ex_forward_b;
+
+
+    // ==========================================================
+    // ALU
+    // ==========================================================
+
+    alu ALU (
+        .a        (ex_forward_a),
+        .b        (ex_alu_b),
+        .alu_ctrl (id_ex_alu_control),
+        .alu_out  (ex_alu_out),
+        .zero     (ex_zero)
+    );
+
+
+    // ==========================================================
+    // FPU
+    // ==========================================================
+
     wire [15:0] ex_fpu_result;
-    wire        ex_fpu_ready;
-    wire        ex_invalid_op;
 
-    fpu fpu_inst (
-        .clk(clk),
-        .rst(rst),
-        .fpu_enable(idex_fpu_enable),
-        .fpu_op(idex_fpu_op),
-        .operand_a(ex_alu_src1),
-        .operand_b(ex_alu_src2),
-        .fpu_result(ex_fpu_result),
-        .fpu_ready(ex_fpu_ready),
-        .invalid_op(ex_invalid_op)
+    fpu FPU (
+        .enable  (id_ex_fpu_enable),
+        .a       (ex_forward_a),
+        .b       (ex_forward_b),
+        .opcode  (id_ex_fpu_opcode),
+        .result  (ex_fpu_result)
     );
 
-    // Result Selection: Integer or FPU
-    wire [15:0] ex_result = idex_fpu_enable ? ex_fpu_result : ex_alu_result;
 
-    //------------------------------------------------------------
-    // EX/MEM Pipeline Register
-    //------------------------------------------------------------
-    reg [15:0] exmem_result;
-    reg [15:0] exmem_rd_data2;
-    reg [2:0]  exmem_rd;
-    reg        exmem_reg_write;
-    reg        exmem_mem_read;
-    reg        exmem_mem_write;
+    // ==========================================================
+    // UNIFIED EXECUTION RESULT
+    // ==========================================================
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            exmem_result    <= 16'h0000;
-            exmem_rd_data2  <= 16'h0000;
-            exmem_rd        <= 3'b000;
-            exmem_reg_write <= 1'b0;
-            exmem_mem_read  <= 1'b0;
-            exmem_mem_write <= 1'b0;
-        end else begin
-            exmem_result    <= ex_result;
-            exmem_rd_data2  <= idex_rd_data2;
-            exmem_rd        <= idex_rd;
-            exmem_reg_write <= idex_reg_write;
-            exmem_mem_read  <= idex_mem_read;
-            exmem_mem_write <= idex_mem_write;
-        end
-    end
+    wire [15:0] ex_result;
 
-    //------------------------------------------------------------
-    // MEM Stage: Data Memory
-    //------------------------------------------------------------
+    assign ex_result =
+        id_ex_fpu_enable ?
+            ex_fpu_result :
+            ex_alu_out;
+
+
+    // ==========================================================
+    // EX/MEM PIPELINE REGISTER
+    // ==========================================================
+
+    wire [15:0] ex_mem_execution_result;
+    wire [15:0] ex_mem_store_data;
+    wire [15:0] ex_mem_pc_plus1;
+
+    wire [2:0] ex_mem_rd;
+
+    wire       ex_mem_mem_read;
+    wire       ex_mem_mem_write;
+    wire       ex_mem_reg_write;
+
+    wire [1:0] ex_mem_wb_select;
+
+
+    ex_mem_reg EX_MEM (
+        .clk                   (clk),
+        .rst_n                 (~rst),
+
+        .execution_result_in   (ex_result),
+        .store_data_in         (id_ex_rs2_data),
+        .pc_plus1_in           (id_ex_pc_plus1),
+
+        .rd_in                 (id_ex_rd),
+
+        .mem_read_in           (id_ex_mem_read),
+        .mem_write_in          (id_ex_mem_write),
+        .reg_write_in          (id_ex_reg_write),
+
+        .wb_select_in          (id_ex_wb_select),
+
+        .execution_result_out  (ex_mem_execution_result),
+        .store_data_out        (ex_mem_store_data),
+        .pc_plus1_out          (ex_mem_pc_plus1),
+
+        .rd_out                (ex_mem_rd),
+
+        .mem_read_out          (ex_mem_mem_read),
+        .mem_write_out         (ex_mem_mem_write),
+        .reg_write_out         (ex_mem_reg_write),
+
+        .wb_select_out         (ex_mem_wb_select)
+    );
+
+
+    // ==========================================================
+    // MEMORY STAGE
+    // ==========================================================
+
     wire [15:0] mem_read_data;
 
-    data_mem data_mem_inst (
-        .clk(clk),
-        .mem_read(exmem_mem_read),
-        .mem_write(exmem_mem_write),
-        .address(exmem_result),
-        .write_data(exmem_rd_data2),
-        .read_data(mem_read_data)
+    data_mem DMEM (
+        .clk        (clk),
+
+        .mem_read   (ex_mem_mem_read),
+        .mem_write  (ex_mem_mem_write),
+
+        .address    (ex_mem_execution_result),
+        .write_data (ex_mem_store_data),
+
+        .read_data  (mem_read_data)
     );
 
-    //------------------------------------------------------------
-    // MEM/WB Pipeline Register
-    //------------------------------------------------------------
-    reg [15:0] memwb_read_data;
-    reg [15:0] memwb_result;
-    reg [2:0]  memwb_rd;
-    reg        memwb_reg_write;
-    reg        memwb_mem_to_reg;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            memwb_read_data  <= 16'h0000;
-            memwb_result     <= 16'h0000;
-            memwb_rd         <= 3'b000;
-            memwb_reg_write  <= 1'b0;
-            memwb_mem_to_reg <= 1'b0;
-        end else begin
-            memwb_read_data  <= mem_read_data;
-            memwb_result     <= exmem_result;
-            memwb_rd         <= exmem_rd;
-            memwb_reg_write  <= exmem_reg_write;
-            memwb_mem_to_reg <= exmem_mem_read;
-        end
-    end
+    // ==========================================================
+    // MEM/WB PIPELINE REGISTER
+    // ==========================================================
 
-    //------------------------------------------------------------
-    // WB Stage: Write-Back
-    //------------------------------------------------------------
-    assign wb_write_data   = (memwb_mem_to_reg) ? memwb_read_data : memwb_result;
-    assign wb_write_addr   = memwb_rd;
-    assign wb_reg_write_en = memwb_reg_write;
+    wire [15:0] mem_wb_memory_data;
+    wire [15:0] mem_wb_execution_result;
+    wire [15:0] mem_wb_pc_plus1;
+
+    wire [2:0] mem_wb_rd;
+
+    wire       mem_wb_reg_write;
+    wire [1:0] mem_wb_wb_select;
+
+
+    mem_wb_reg MEM_WB (
+        .clk                   (clk),
+        .rst_n                 (~rst),
+
+        .memory_data_in        (mem_read_data),
+        .execution_result_in   (ex_mem_execution_result),
+        .pc_plus1_in           (ex_mem_pc_plus1),
+
+        .rd_in                 (ex_mem_rd),
+        .reg_write_in          (ex_mem_reg_write),
+        .wb_select_in          (ex_mem_wb_select),
+
+        .memory_data_out       (mem_wb_memory_data),
+        .execution_result_out  (mem_wb_execution_result),
+        .pc_plus1_out          (mem_wb_pc_plus1),
+
+        .rd_out                (mem_wb_rd),
+        .reg_write_out         (mem_wb_reg_write),
+        .wb_select_out         (mem_wb_wb_select)
+    );
+
+
+    // ==========================================================
+    // WRITEBACK
+    // ==========================================================
+
+    assign wb_reg_write =
+        mem_wb_reg_write;
+
+    assign wb_write_data =
+        mem_wb_wb_select == 2'b01 ? mem_wb_memory_data :
+        mem_wb_wb_select == 2'b10 ? mem_wb_pc_plus1 :
+                                     mem_wb_execution_result;
 
 endmodule
