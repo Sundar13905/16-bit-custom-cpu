@@ -1051,16 +1051,87 @@ end
         $display("PASS COUNT = %0d", pass_count);
         $display("FAIL COUNT = %0d", fail_count);
 
-        if (fail_count == 0)
-            $display("ALL PIPELINE REGRESSION TESTS PASSED");
-        else
-            $display("PIPELINE REGRESSION HAS FAILURES");
+        // ============================================================
+// TEST 22: ALU RESULT -> SH STORE-DATA FORWARDING
+//
+// ADD R3,R1,R2   -> R3 = 10 + 20 = 30
+// SH  R3,0(R4)   -> MEM[0] = 30
+// LH  R5,0(R4)   -> R5 = 30
+// ============================================================
 
-        $display("============================================================");
+    $display("\nTEST 22: ALU result -> SH store-data forwarding");
+
+    // Initialize registers
+    DUT.RF.registers[1] = 16'd10;
+    DUT.RF.registers[2] = 16'd20;
+    DUT.RF.registers[3] = 16'd0;
+    DUT.RF.registers[4] = 16'd0;
+    DUT.RF.registers[5] = 16'd0;
+
+    // Clear memory location
+    DUT.DMEM.memory[0] = 16'd0;
+
+    // Program
+    // PC0: ADD R3,R1,R2
+    // PC1: SH  R3,0(R4)
+    // PC2: LH  R5,0(R4)
+
+    DUT.IMEM.instr_mem[0] = enc_r(3, 1, 2, 3'b000);
+    DUT.IMEM.instr_mem[1] = enc_i(3'b010, 3, 4, 4'sd0, 3'b010);
+    DUT.IMEM.instr_mem[2] = enc_i(3'b001, 5, 4, 4'sd0, 3'b010);
+
+    // Reset
+    rst = 1'b1;
+    repeat (2) @(posedge clk);
+    rst = 1'b0;
+
+    // Allow pipeline to complete
+    repeat (10) @(posedge clk);
+
+    // Check ADD
+    if (DUT.RF.registers[3] == 16'd30)
+        $display("PASS: ADD produced R3 = 30");
+    else begin
+        $display("FAIL: R3 expected 30, got %0d",
+                DUT.RF.registers[3]);
+        fail_count = fail_count + 1;
+    end
+
+    // Check SH
+    if (DUT.DMEM.memory[0] == 16'd30)
+        $display("PASS: SH stored 30 into MEM[0]");
+    else begin
+        $display("FAIL: MEM[0] expected 30, got %0d",
+                DUT.DMEM.memory[0]);
+        fail_count = fail_count + 1;
+    end
+
+    // Check LH
+    if (DUT.RF.registers[5] == 16'd30)
+        $display("PASS: LH loaded R5 = 30");
+    else begin
+        $display("FAIL: R5 expected 30, got %0d",
+                DUT.RF.registers[5]);
+        fail_count = fail_count + 1;
+    end
+
+    if ((DUT.RF.registers[3] == 16'd30) &&
+        (DUT.DMEM.memory[0] == 16'd30) &&
+        (DUT.RF.registers[5] == 16'd30))
+        $display("PASS: ALU -> SH store-data forwarding");
+
+            if (fail_count == 0)
+                $display("ALL PIPELINE REGRESSION TESTS PASSED");
+            else
+                $display("PIPELINE REGRESSION HAS FAILURES");
+
+            $display("============================================================");
 
         #20;
         $finish;
     end
+
+    
 
     // ============================================================
     // OPTIONAL CYCLE DEBUG
