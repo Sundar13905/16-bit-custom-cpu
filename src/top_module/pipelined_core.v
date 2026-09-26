@@ -529,7 +529,7 @@ module pipelined_core (
         .rst_n                 (~rst),
 
         .execution_result_in   (ex_result),
-        .store_data_in         (id_ex_rs2_data),
+        .store_data_in         (ex_forward_b),
         .pc_plus1_in           (id_ex_pc_plus1),
 
         .rd_in                 (id_ex_rd),
