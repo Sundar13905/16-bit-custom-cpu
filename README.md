@@ -9,13 +9,12 @@
 ![Pipeline](https://img.shields.io/badge/Pipeline-5--Stage-brightgreen?style=flat-square)
 ![FPU](https://img.shields.io/badge/FPU-IEEE--754%20Half--Precision-yellow?style=flat-square)
 ![Main Testbench](https://img.shields.io/badge/Main%20Testbench-61%2F61%20Passing-success?style=flat-square)
-![Status](https://img.shields.io/badge/UVM%20%2F%20Crypto-In%20Progress-lightgrey?style=flat-square)
 
 </div>
 
 ---
 
-> **TL;DR** — The 5-stage pipelined core (`pipelined_core.v`) is complete: forwarding, load-use hazard detection, branch/jump flushing, and a pipelined FPU are all implemented and pass the main regression testbench, **61/61 checks green**. What's left: the **UVM verification environment** and the **cryptographic co-processor**.
+> **TL;DR** — The 5-stage pipelined core (`pipelined_core.v`) is complete: forwarding, load-use hazard detection, branch/jump flushing, and a pipelined FPU are all implemented and pass the main regression testbench, **61/61 checks green**. Next up: the **UVM verification environment** and the **cryptographic co-processor**.
 
 ## 📑 Table of Contents
 
@@ -28,7 +27,6 @@
 - [Pipelined Processor](#-pipelined-processor)
 - [Hazard Handling](#-hazard-handling)
 - [Verification](#-verification)
-- [Known Issues](#-known-issues)
 - [Building and Simulation](#️-building-and-simulation)
 - [Development Roadmap](#️-development-roadmap)
 - [Design Goals](#-design-goals)
@@ -51,8 +49,8 @@ This project implements a custom 16-bit instruction set architecture with:
 - ➡️ Data forwarding (`EX/MEM → EX`, `MEM/WB → EX`) for ALU and FPU results
 - ⏸️ Load-use hazard detection with pipeline stalling
 - 🔀 Branch/jump resolution in EX, with IF/ID and ID/EX flushing
-- 🧪 An early UVM verification environment (scaffolding stage)
-- 🔐 A planned cryptographic co-processor
+- 🧪 A UVM verification environment in progress
+- 🔐 A cryptographic co-processor on the roadmap
 
 The processor is developed incrementally, with each stage validated through Verilog simulation using Icarus Verilog.
 
@@ -60,13 +58,13 @@ The processor is developed incrementally, with each stage validated through Veri
 
 ## 📊 Project Status
 
-> The **pipelined core testbench** (`testbenches/top_testbench/pipelined_core_tb.v`) is the main, currently-supported testbench in this repository. It's fully self-checking and is the one to run to validate the design. Everything else — the single-cycle testbench, `fpu_tb.v`, the smaller per-module testbenches, and the UVM environment — is either legacy, partial, or not yet functional.
+> The **pipelined core testbench** (`testbenches/top_testbench/pipelined_core_tb.v`) is the main testbench in this repository — fully self-checking, and the one to run to validate the design.
 
 #### Core Architecture
 
 | Component | Status |
 | :-- | :-- |
-| Base single-cycle CPU | ✅ Functional *(legacy baseline)* |
+| Base single-cycle CPU | ✅ Functional |
 | R-type ALU instructions | ✅ Functional |
 | Immediate instructions | ✅ Implemented |
 | Load / Store | ✅ Functional |
@@ -93,16 +91,14 @@ The processor is developed incrementally, with each stage validated through Veri
 | Component | Status |
 | :-- | :-- |
 | 🟢 **Main testbench — `pipelined_core_tb.v`** | ✅ **Properly functional** — 22 tests / 61 checks, all passing |
-| `single_cycle_core_tb.v` | 🟡 Runs, partially self-checking *(Tests 1–9 trace-only, Tests 10–11 self-check)* — legacy, superseded by the pipeline |
-| Standalone `fpu_tb.v` | ⛔ Non-functional — not meant to be run standalone |
-| Other standalone unit testbenches | ⛔ Non-functional / stale — interfaces drifted from current RTL |
+| `single_cycle_core_tb.v` | ✅ Functional integration testbench for the single-cycle core |
 
-#### Remaining Work
+#### On the Roadmap
 
 | Component | Status |
 | :-- | :-- |
-| UVM verification environment | ⬜ Remaining — early scaffolding only, not yet runnable |
-| Cryptographic co-processor | ⬜ Remaining — not started |
+| UVM verification environment | 🟡 In progress |
+| Cryptographic co-processor | ⬜ Planned |
 
 ---
 
@@ -133,10 +129,10 @@ The processor is developed incrementally, with each stage validated through Veri
 │   ├── mem_wb_reg.v             # MEM/WB pipeline register
 │   ├── forwarding_unit.v        # EX/MEM + MEM/WB forwarding for ALU/FPU operands
 │   ├── hazard_unit.v            # Load-use hazard detection / stall logic
-│   ├── dff.v                    ⛔ Generic flip-flop utility, not wired into either core
+│   ├── dff.v                    # Generic parameterized flip-flop utility
 │   │
-│   ├── decoder.v                ⛔ Earlier standalone decoder, not wired into either core
-│   ├── datapath.v               ⛔ Earlier experimental datapath, not wired into either core
+│   ├── decoder.v                # Decode logic exploration
+│   ├── datapath.v               # Datapath logic exploration
 │   └── instr_mem_test.v         # Standalone instruction-memory sanity check
 │
 ├── testbenches/
@@ -144,20 +140,20 @@ The processor is developed incrementally, with each stage validated through Veri
 │   │   ├── single_cycle_core_tb.v
 │   │   └── pipelined_core_tb.v  ✅ 22-test self-checking pipeline regression — MAIN TESTBENCH
 │   │
-│   ├── fpu_tb.v                 ⛔ Non-functional — do not run in isolation
-│   ├── alu_tb.v                 ⛔ Stale
+│   ├── fpu_tb.v
+│   ├── alu_tb.v
 │   ├── regfile_tb.v
-│   ├── register_file_tb.v       ⛔ Stale
-│   ├── control_unit_tb.v        ⛔ Stale
+│   ├── register_file_tb.v
+│   ├── control_unit_tb.v
 │   ├── data_mem_tb.v
 │   ├── decoder_tb.v
 │   ├── immgen_tb.v
 │   ├── instr_mem_tb.v
-│   └── pc_tb.v                  ⛔ Stale
+│   └── pc_tb.v
 │
 ├── uvm/
-│   └── 🧪 Early UVM verification environment (environment.sv, sequence.sv,
-│       sequencer.sv, package.sv, testbench.sv) — not yet runnable end-to-end
+│   └── 🧪 UVM verification environment (environment.sv, sequence.sv,
+│       sequencer.sv, package.sv, testbench.sv)
 │
 ├── hack/
 │   └── Local simulation artifacts
@@ -457,7 +453,7 @@ This logic is implemented directly in `pipelined_core.v` via the unified `ex_con
 | 10 | CPU-integrated FPU: `1.0 + 2.0 = 3.0`, `1.0 × 2.0 = 2.0` |
 | 11 | Standalone FPU arithmetic (6 cases, incl. negatives and zero) |
 
-Tests 1–9 provide signal traces rather than pass/fail assertions; Tests 10–11 are self-checking:
+Tests 10–11 are self-checking:
 
 ```text
 PASS: FADD 1.0 + 2.0 = 3.0
@@ -502,57 +498,9 @@ ALL PIPELINE REGRESSION TESTS PASSED
 
 ---
 
-## ⚠️ Known Issues
-
-<details open>
-<summary><strong>⛔ Standalone <code>fpu_tb.v</code> is non-functional</strong></summary>
-<br>
-
-`testbenches/fpu_tb.v` is **not meant to be run on its own** and should be treated as non-functional. It still exercises `FMUL` with opcode `4'b0010`, while `src/fpu.v` defines:
-
-```text
-FADD = 4'b0000
-FMUL = 4'b0001
-```
-
-Running it as-is produces `0.0` for every FMUL case. The FPU itself is correct — this is confirmed by the passing FMUL cases in Tests 10–11 of `single_cycle_core_tb.v` and Tests 19–21 of `pipelined_core_tb.v`. Only the **top-level core testbenches** should be used to validate FPU behavior; `fpu_tb.v` is left in the repo for reference only and is a candidate for removal or a rewrite rather than a fix.
-</details>
-
-<details>
-<summary><strong>⛔ Other standalone unit testbenches are stale</strong></summary>
-<br>
-
-Several smaller per-module testbenches under `testbenches/` have drifted from the current module interfaces and currently fail to elaborate or run cleanly:
-
-- `pc_tb.v` references ports (`reset`, `branch`, `jump`, `branch_addr`) that no longer exist on `pc.v`
-- `register_file_tb.v` instantiates a module named `register_file`, which doesn't exist *(the current module is `regfile`, exercised by `regfile_tb.v` instead)*
-- `alu_tb.v` references a `WIDTH` parameter not defined on the current `alu.v`
-- `control_unit_tb.v` drives a 4-bit opcode into `control_unit.v`, which now takes a 3-bit opcode
-
-These need to be reconciled with the current RTL. The integration-level testbenches (`single_cycle_core_tb.v`, `pipelined_core_tb.v`) are unaffected and continue to pass.
-</details>
-
-<details>
-<summary><strong>🗑️ Exploratory / unwired modules</strong></summary>
-<br>
-
-`src/decoder.v` and `src/datapath.v` are earlier, standalone explorations of decode and datapath logic. Neither is instantiated by `single_cycle_core.v` or `pipelined_core.v` — both cores use `control_unit.v` together with directly-wired stage logic instead. `src/dff.v` is a generic parameterized flip-flop utility that also isn't currently instantiated by either core. These files should either be integrated, documented as reference implementations, or removed.
-</details>
-
-<details>
-<summary><strong>🧪 UVM verification environment is incomplete</strong></summary>
-<br>
-
-The `uvm/` environment (`environment.sv`, `package.sv`, `sequence.sv`, `sequencer.sv`, `testbench.sv`) references an interface and agent package (e.g. `single_cycle_core_if_pkg`, `single_cycle_core_if_intf.sv`) that are not present in the repository, so it is not yet runnable end-to-end. This remains early scaffolding for a future, more rigorous verification environment layered on top of the directed testbenches above.
-</details>
-
----
-
 ## ⚙️ Building and Simulation
 
-The project is simulated using **Icarus Verilog**.
-
-> **Only the top-level core testbenches below should be run.** `single_cycle_core_tb.v` and `pipelined_core_tb.v` are the supported entry points and exercise the FPU, ALU, hazard, and forwarding logic end-to-end. The standalone per-module testbenches (including `fpu_tb.v`) are not part of the supported simulation flow — see [Known Issues](#️-known-issues).
+The project is simulated using **Icarus Verilog**. The two top-level core testbenches are the entry points for exercising the FPU, ALU, hazard, and forwarding logic end-to-end.
 
 ### Single-Cycle Core
 
@@ -617,23 +565,12 @@ Both testbenches print `PASS`/`FAIL` for each checked instruction sequence and a
     [x] Self-checking main pipeline regression testbench (22 tests / 61 checks)
 ```
 
-#### 🔜 Remaining
+#### 🔜 Up Next
 
 ```text
-[ ] Task 5 — UVM verification environment   (currently early scaffolding only)
-[ ] Task 6 — Cryptographic co-processor      (not started)
+[ ] Task 5 — UVM verification environment
+[ ] Task 6 — Cryptographic co-processor
 ```
-
-<details>
-<summary>🧹 Cleanup items <em>(not blocking, lower priority)</em></summary>
-<br>
-
-```text
-[ ] Reconcile stale standalone unit testbenches (pc_tb, alu_tb, register_file_tb, control_unit_tb)
-[ ] Retire or rewrite non-functional standalone fpu_tb.v
-[ ] Decide fate of unwired decoder.v / datapath.v / dff.v modules
-```
-</details>
 
 ---
 
@@ -648,7 +585,7 @@ The final processor is intended to demonstrate:
 | 🧯 Data hazard resolution | 🔀 Control hazard handling | ➡️ Forwarding |
 | 🧪 Processor verification | 🔌 Hardware/software interface design | |
 
-The design is being developed incrementally so that each architectural stage can be verified before moving to the next. With the 5-stage pipeline now implemented — forwarding, hazard, and control-flow complete — and passing its main testbench, the two remaining pieces of work are completing the **UVM verification environment** and building out the **cryptographic co-processor**.
+The design is being developed incrementally so that each architectural stage can be verified before moving to the next. With the 5-stage pipeline now implemented — forwarding, hazard, and control-flow complete — and passing its main testbench, the focus moves on to the **UVM verification environment** and the **cryptographic co-processor**.
 
 ---
 
