@@ -19,7 +19,13 @@ module control_unit (
     output wire [3:0] alu_ctrl,
 
     output reg        fpu_enable,
-    output reg [3:0]  fpu_opcode
+    output reg [3:0]  fpu_opcode,
+
+    // ==========================================================
+    // CRYPTO CONTROL
+    // ==========================================================
+    output reg        crypto_enable,
+    output reg        crypto_dec
 
 );
 
@@ -43,21 +49,25 @@ module control_unit (
         // Default values
         // ------------------------------------------------------
 
-        reg_write   = 1'b0;
-        mem_read    = 1'b0;
-        mem_write   = 1'b0;
-        alu_src     = 1'b0;
+        reg_write    = 1'b0;
+        mem_read     = 1'b0;
+        mem_write    = 1'b0;
+        alu_src      = 1'b0;
 
-        branch      = 1'b0;
-        branch_type = 2'b00;
+        branch       = 1'b0;
+        branch_type  = 2'b00;
 
-        jump        = 1'b0;
-        jalr        = 1'b0;
+        jump         = 1'b0;
+        jalr         = 1'b0;
 
-        alu_op      = 2'b00;
+        alu_op       = 2'b00;
 
-        fpu_enable  = 1'b0;
-        fpu_opcode  = 4'b0000;
+        fpu_enable   = 1'b0;
+        fpu_opcode   = 4'b0000;
+
+        // Crypto defaults
+        crypto_enable = 1'b0;
+        crypto_dec    = 1'b0;
 
         // ======================================================
         // OPCODE DECODE
@@ -134,7 +144,7 @@ module control_unit (
                 reg_write = 1'b0;
                 branch    = 1'b1;
                 alu_src   = 1'b0;
-                alu_op    = 2'b01;
+                alu_op     = 2'b01;
 
                 case (funct)
 
@@ -180,30 +190,83 @@ module control_unit (
             end
 
             // --------------------------------------------------
-            // FPU
+            // FPU / CRYPTO
             // 110
             //
+            // FPU:
             // funct 000 = FADD
             // funct 001 = FMUL
+            //
+            // CRYPTO:
+            // funct 010 = ENC
+            // funct 011 = DEC
             // --------------------------------------------------
 
             3'b110: begin
 
-                reg_write  = 1'b1;
-                fpu_enable = 1'b1;
-
                 case (funct)
 
+                    // --------------------------------------------------
+                    // FADD
+                    // --------------------------------------------------
+
                     3'b000: begin
+
+                        reg_write  = 1'b1;
+                        fpu_enable = 1'b1;
                         fpu_opcode = 4'b0000;
+
                     end
+
+                    // --------------------------------------------------
+                    // FMUL
+                    // --------------------------------------------------
 
                     3'b001: begin
+
+                        reg_write  = 1'b1;
+                        fpu_enable = 1'b1;
                         fpu_opcode = 4'b0001;
+
                     end
 
+                    // --------------------------------------------------
+                    // ENC
+                    // --------------------------------------------------
+
+                    3'b010: begin
+
+                        reg_write     = 1'b1;
+                        crypto_enable = 1'b1;
+                        crypto_dec    = 1'b0;
+
+                    end
+
+                    // --------------------------------------------------
+                    // DEC
+                    // --------------------------------------------------
+
+                    3'b011: begin
+
+                        reg_write     = 1'b1;
+                        crypto_enable = 1'b1;
+                        crypto_dec    = 1'b1;
+
+                    end
+
+                    // --------------------------------------------------
+                    // Invalid FPU / Crypto funct
+                    // --------------------------------------------------
+
                     default: begin
-                        fpu_opcode = 4'b0000;
+
+                        reg_write     = 1'b0;
+                        fpu_enable    = 1'b0;
+                        fpu_opcode    = 4'b0000;
+
+                        crypto_enable = 1'b0;
+                        crypto_dec    = 1'b0;
+
                     end
 
                 endcase
@@ -220,7 +283,6 @@ module control_unit (
                 reg_write = 1'b1;
                 jump      = 1'b1;
                 jalr      = 1'b1;
-
                 alu_src   = 1'b1;
                 alu_op    = 2'b00;
 
@@ -232,21 +294,24 @@ module control_unit (
 
             default: begin
 
-                reg_write   = 1'b0;
-                mem_read    = 1'b0;
-                mem_write   = 1'b0;
-                alu_src     = 1'b0;
+                reg_write    = 1'b0;
+                mem_read     = 1'b0;
+                mem_write    = 1'b0;
+                alu_src      = 1'b0;
 
-                branch      = 1'b0;
-                branch_type = 2'b00;
+                branch       = 1'b0;
+                branch_type  = 2'b00;
 
-                jump        = 1'b0;
-                jalr        = 1'b0;
+                jump         = 1'b0;
+                jalr         = 1'b0;
 
-                alu_op      = 2'b00;
+                alu_op       = 2'b00;
 
-                fpu_enable  = 1'b0;
-                fpu_opcode  = 4'b0000;
+                fpu_enable   = 1'b0;
+                fpu_opcode   = 4'b0000;
+
+                crypto_enable = 1'b0;
+                crypto_dec    = 1'b0;
 
             end
 
@@ -291,7 +356,9 @@ module alu_decoder (
             // --------------------------------------------------
 
             2'b00: begin
+
                 alu_ctrl = 4'b0000;
+
             end
 
             // --------------------------------------------------
@@ -299,7 +366,9 @@ module alu_decoder (
             // --------------------------------------------------
 
             2'b01: begin
+
                 alu_ctrl = 4'b0001;
+
             end
 
             // --------------------------------------------------
@@ -359,7 +428,9 @@ module alu_decoder (
             end
 
             default: begin
+
                 alu_ctrl = 4'b0000;
+
             end
 
         endcase
