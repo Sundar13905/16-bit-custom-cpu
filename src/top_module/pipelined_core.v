@@ -1,8 +1,10 @@
 `timescale 1ns / 1ps
 
 module pipelined_core (
+
     input wire clk,
     input wire rst
+
 );
 
     // ==========================================================
@@ -58,7 +60,6 @@ module pipelined_core (
         .instr      (instr)
     );
 
-
     // ==========================================================
     // IF/ID PIPELINE REGISTER
     // ==========================================================
@@ -82,7 +83,6 @@ module pipelined_core (
         .instr_out    (if_id_instr)
     );
 
-
     // ==========================================================
     // ID STAGE
     // ==========================================================
@@ -93,10 +93,9 @@ module pipelined_core (
     assign id_opcode = if_id_instr[14:12];
     assign id_funct  = if_id_instr[2:0];
 
-
-    // ----------------------------------------------------------
+    // ==========================================================
     // Register addresses
-    // ----------------------------------------------------------
+    // ==========================================================
 
     wire [2:0] id_rf_read_addr1;
     wire [2:0] id_rf_read_addr2;
@@ -108,16 +107,39 @@ module pipelined_core (
         id_opcode == 3'b010 ? if_id_instr[8:6]  :   // SH
         id_opcode == 3'b011 ? if_id_instr[8:6]  :   // I-type
         id_opcode == 3'b100 ? if_id_instr[11:9] :   // Branch
-        id_opcode == 3'b110 ? if_id_instr[8:6]  :   // FPU
+        id_opcode == 3'b110 ? if_id_instr[8:6]  :   // FPU / Crypto
         id_opcode == 3'b111 ? if_id_instr[8:6]  :   // JALR
-                                      3'b000;
+                                  3'b000;
+
+    // ----------------------------------------------------------
+    // Rs2 selection
+    //
+    // R-type:
+    //     Rs2 = [5:3]
+    //
+    // SH:
+    //     Store data register = [11:9]
+    //
+    // Branch:
+    //     Rs2 = [8:6]
+    //
+    // FPU:
+    //     FADD/FMUL use Rs2 = [5:3]
+    //
+    // Crypto:
+    //     ENC/DEC are single-source instructions.
+    //     [5:3] is reserved and therefore must NOT be treated
+    //     as Rs2.
+    // ----------------------------------------------------------
 
     assign id_rf_read_addr2 =
-        id_opcode == 3'b000 ? if_id_instr[5:3]  :   // R-type
-        id_opcode == 3'b010 ? if_id_instr[11:9] :   // SH
-        id_opcode == 3'b100 ? if_id_instr[8:6]  :   // Branch
-        id_opcode == 3'b110 ? if_id_instr[5:3]  :   // FPU
-                                      3'b000;
+        id_opcode == 3'b000 ? if_id_instr[5:3] :
+        id_opcode == 3'b010 ? if_id_instr[11:9] :
+        id_opcode == 3'b100 ? if_id_instr[8:6]  :
+        (id_opcode == 3'b110 &&
+         ((id_funct == 3'b000) || (id_funct == 3'b001))) ?
+                              if_id_instr[5:3] :
+                              3'b000;
 
     assign id_rf_write_addr =
         id_opcode == 3'b000 ? if_id_instr[11:9] :
@@ -126,12 +148,11 @@ module pipelined_core (
         id_opcode == 3'b101 ? if_id_instr[11:9] :
         id_opcode == 3'b110 ? if_id_instr[11:9] :
         id_opcode == 3'b111 ? if_id_instr[11:9] :
-                                      3'b000;
+                                  3'b000;
 
-
-    // ----------------------------------------------------------
-    // Control
-    // ----------------------------------------------------------
+    // ==========================================================
+    // CONTROL
+    // ==========================================================
 
     wire       id_reg_write;
     wire       id_mem_read;
@@ -149,10 +170,17 @@ module pipelined_core (
     wire       id_fpu_enable;
     wire [3:0] id_fpu_opcode;
 
+    // ----------------------------------------------------------
+    // Crypto control
+    // ----------------------------------------------------------
+
+    wire       id_crypto_enable;
+    wire       id_crypto_dec;
+
     wire [1:0] id_wb_select;
 
     // WB select:
-    // 00 = ALU/FPU result
+    // 00 = ALU/FPU/Crypto result
     // 01 = memory data
     // 10 = PC + 1 (JAL/JALR)
 
@@ -161,32 +189,39 @@ module pipelined_core (
         id_jump     ? 2'b10 :
                       2'b00;
 
+    // ==========================================================
+    // CONTROL UNIT
+    // ==========================================================
 
     control_unit CTRL (
-        .opcode      (id_opcode),
-        .funct       (id_funct),
 
-        .reg_write   (id_reg_write),
-        .mem_read    (id_mem_read),
-        .mem_write   (id_mem_write),
-        .alu_src     (id_alu_src),
+        .opcode        (id_opcode),
+        .funct         (id_funct),
 
-        .branch      (id_branch),
-        .branch_type (id_branch_type),
+        .reg_write     (id_reg_write),
+        .mem_read      (id_mem_read),
+        .mem_write     (id_mem_write),
+        .alu_src       (id_alu_src),
 
-        .jump        (id_jump),
-        .jalr        (id_jalr),
+        .branch        (id_branch),
+        .branch_type   (id_branch_type),
 
-        .alu_ctrl    (id_alu_ctrl),
+        .jump          (id_jump),
+        .jalr          (id_jalr),
 
-        .fpu_enable  (id_fpu_enable),
-        .fpu_opcode  (id_fpu_opcode)
+        .alu_ctrl      (id_alu_ctrl),
+
+        .fpu_enable    (id_fpu_enable),
+        .fpu_opcode    (id_fpu_opcode),
+
+        .crypto_enable (id_crypto_enable),
+        .crypto_dec    (id_crypto_dec)
+
     );
 
-
-    // ----------------------------------------------------------
+    // ==========================================================
     // Register File
-    // ----------------------------------------------------------
+    // ==========================================================
 
     wire [15:0] id_rd_data1;
     wire [15:0] id_rd_data2;
@@ -195,6 +230,7 @@ module pipelined_core (
     wire        wb_reg_write;
 
     regfile RF (
+
         .clk        (clk),
         .rst        (rst),
 
@@ -208,26 +244,28 @@ module pipelined_core (
 
         .read_data1 (id_rd_data1),
         .read_data2 (id_rd_data2)
+
     );
 
-
-    // ----------------------------------------------------------
+    // ==========================================================
     // Immediate Generator
-    // ----------------------------------------------------------
+    // ==========================================================
 
     wire [15:0] id_imm;
 
     immgen IMMGEN (
+
         .instr   (if_id_instr),
         .imm_out (id_imm)
-    );
 
+    );
 
     // ==========================================================
     // HAZARD UNIT
     // ==========================================================
 
     hazard_unit HAZARD_UNIT (
+
         .id_ex_mem_read (id_ex_mem_read),
         .id_ex_rd       (id_ex_rd),
 
@@ -237,8 +275,8 @@ module pipelined_core (
         .pc_stall       (hazard_pc_stall),
         .if_id_stall    (hazard_if_id_stall),
         .id_ex_flush    (hazard_id_ex_flush)
-    );
 
+    );
 
     // ==========================================================
     // ID/EX PIPELINE REGISTER
@@ -256,8 +294,8 @@ module pipelined_core (
     wire [2:0] id_ex_rd;
 
     wire [3:0] id_ex_alu_control;
-
     wire       id_ex_alu_src;
+
     wire       id_ex_mem_read;
     wire       id_ex_mem_write;
     wire       id_ex_reg_write;
@@ -273,74 +311,93 @@ module pipelined_core (
     wire       id_ex_fpu_enable;
     wire [3:0] id_ex_fpu_opcode;
 
+    // ----------------------------------------------------------
+    // Crypto pipeline control
+    // ----------------------------------------------------------
+
+    wire       id_ex_crypto_enable;
+    wire       id_ex_crypto_dec;
+
+    // ==========================================================
+    // ID/EX INSTANCE
+    // ==========================================================
 
     id_ex_reg ID_EX (
-        .clk             (clk),
-        .rst_n           (~rst),
 
-        .flush           (hazard_id_ex_flush || ex_control_taken),
+        .clk               (clk),
+        .rst_n             (~rst),
 
-        .pc_in           (if_id_pc),
-        .pc_plus1_in     (if_id_pc_plus1),
+        .flush             (hazard_id_ex_flush || ex_control_taken),
 
-        .rs1_data_in     (id_rd_data1),
-        .rs2_data_in     (id_rd_data2),
+        .pc_in             (if_id_pc),
+        .pc_plus1_in       (if_id_pc_plus1),
 
-        .imm_in          (id_imm),
+        .rs1_data_in       (id_rd_data1),
+        .rs2_data_in       (id_rd_data2),
 
-        .rs1_in          (id_rf_read_addr1),
-        .rs2_in          (id_rf_read_addr2),
-        .rd_in           (id_rf_write_addr),
+        .imm_in            (id_imm),
 
-        .alu_control_in  (id_alu_ctrl),
-        .alu_src_in      (id_alu_src),
+        .rs1_in            (id_rf_read_addr1),
+        .rs2_in            (id_rf_read_addr2),
+        .rd_in             (id_rf_write_addr),
 
-        .mem_read_in     (id_mem_read),
-        .mem_write_in    (id_mem_write),
+        .alu_control_in    (id_alu_ctrl),
+        .alu_src_in        (id_alu_src),
 
-        .reg_write_in    (id_reg_write),
-        .wb_select_in    (id_wb_select),
+        .mem_read_in       (id_mem_read),
+        .mem_write_in      (id_mem_write),
+        .reg_write_in      (id_reg_write),
 
-        .branch_in       (id_branch),
-        .branch_type_in  (id_branch_type),
+        .wb_select_in      (id_wb_select),
 
-        .jump_in         (id_jump),
-        .jalr_in         (id_jalr),
+        .branch_in         (id_branch),
+        .branch_type_in    (id_branch_type),
 
-        .fpu_enable_in   (id_fpu_enable),
-        .fpu_opcode_in   (id_fpu_opcode),
+        .jump_in            (id_jump),
+        .jalr_in            (id_jalr),
 
-        .pc_out          (id_ex_pc),
-        .pc_plus1_out    (id_ex_pc_plus1),
+        .fpu_enable_in     (id_fpu_enable),
+        .fpu_opcode_in     (id_fpu_opcode),
 
-        .rs1_data_out    (id_ex_rs1_data),
-        .rs2_data_out    (id_ex_rs2_data),
+        // Crypto control
+        .crypto_enable_in  (id_crypto_enable),
+        .crypto_dec_in     (id_crypto_dec),
 
-        .imm_out         (id_ex_imm),
+        .pc_out            (id_ex_pc),
+        .pc_plus1_out      (id_ex_pc_plus1),
 
-        .rs1_out         (id_ex_rs1),
-        .rs2_out         (id_ex_rs2),
-        .rd_out          (id_ex_rd),
+        .rs1_data_out      (id_ex_rs1_data),
+        .rs2_data_out      (id_ex_rs2_data),
 
-        .alu_control_out (id_ex_alu_control),
-        .alu_src_out     (id_ex_alu_src),
+        .imm_out           (id_ex_imm),
 
-        .mem_read_out    (id_ex_mem_read),
-        .mem_write_out   (id_ex_mem_write),
+        .rs1_out           (id_ex_rs1),
+        .rs2_out           (id_ex_rs2),
+        .rd_out            (id_ex_rd),
 
-        .reg_write_out   (id_ex_reg_write),
-        .wb_select_out   (id_ex_wb_select),
+        .alu_control_out   (id_ex_alu_control),
+        .alu_src_out       (id_ex_alu_src),
 
-        .branch_out      (id_ex_branch),
-        .branch_type_out (id_ex_branch_type),
+        .mem_read_out      (id_ex_mem_read),
+        .mem_write_out     (id_ex_mem_write),
+        .reg_write_out     (id_ex_reg_write),
 
-        .jump_out        (id_ex_jump),
-        .jalr_out        (id_ex_jalr),
+        .wb_select_out     (id_ex_wb_select),
 
-        .fpu_enable_out  (id_ex_fpu_enable),
-        .fpu_opcode_out  (id_ex_fpu_opcode)
+        .branch_out        (id_ex_branch),
+        .branch_type_out   (id_ex_branch_type),
+
+        .jump_out          (id_ex_jump),
+        .jalr_out          (id_ex_jalr),
+
+        .fpu_enable_out    (id_ex_fpu_enable),
+        .fpu_opcode_out    (id_ex_fpu_opcode),
+
+        // Crypto control outputs
+        .crypto_enable_out (id_ex_crypto_enable),
+        .crypto_dec_out    (id_ex_crypto_dec)
+
     );
-
 
     // ==========================================================
     // FORWARDING UNIT
@@ -350,6 +407,7 @@ module pipelined_core (
     wire [1:0] forward_b;
 
     forwarding_unit FORWARD_UNIT (
+
         .id_ex_rs1        (id_ex_rs1),
         .id_ex_rs2        (id_ex_rs2),
 
@@ -361,8 +419,8 @@ module pipelined_core (
 
         .forward_a        (forward_a),
         .forward_b        (forward_b)
-    );
 
+    );
 
     // ==========================================================
     // EX STAGE
@@ -373,36 +431,37 @@ module pipelined_core (
 
     wire [15:0] ex_alu_b;
     wire [15:0] ex_alu_out;
+
     wire        ex_zero;
 
-
-    // ----------------------------------------------------------
+    // ==========================================================
     // Forwarding MUX for operand A
-    // ----------------------------------------------------------
+    // ==========================================================
 
     assign ex_forward_a =
         forward_a == 2'b01 ? ex_mem_execution_result :
         forward_a == 2'b10 ? wb_write_data :
                              id_ex_rs1_data;
 
-
-    // ----------------------------------------------------------
+    // ==========================================================
     // Forwarding MUX for operand B
-    // ----------------------------------------------------------
+    // ==========================================================
 
     assign ex_forward_b =
         forward_b == 2'b01 ? ex_mem_execution_result :
         forward_b == 2'b10 ? wb_write_data :
                              id_ex_rs2_data;
 
-
     // ==========================================================
     // BRANCH DECISION
     // ==========================================================
 
     assign ex_branch_taken =
+
         id_ex_branch &&
+
         (
+
             (id_ex_branch_type == 2'b00 &&
              (ex_forward_a == ex_forward_b)) ||
 
@@ -414,11 +473,11 @@ module pipelined_core (
 
             (id_ex_branch_type == 2'b11 &&
              ($signed(ex_forward_a) >= $signed(ex_forward_b)))
+
         );
 
     assign ex_branch_target =
         id_ex_pc + id_ex_imm;
-
 
     // ==========================================================
     // JUMP DECISION
@@ -426,7 +485,6 @@ module pipelined_core (
 
     assign ex_jump_taken =
         id_ex_jump || id_ex_jalr;
-
 
     // ----------------------------------------------------------
     // JAL / JALR target
@@ -444,10 +502,12 @@ module pipelined_core (
     // ----------------------------------------------------------
 
     assign ex_jump_target =
-        id_ex_jalr ?
-            (ex_forward_a + id_ex_imm) :
-            (id_ex_pc + id_ex_imm);
 
+        id_ex_jalr ?
+
+            (ex_forward_a + id_ex_imm) :
+
+            (id_ex_pc + id_ex_imm);
 
     // ----------------------------------------------------------
     // Unified control-flow decision
@@ -456,29 +516,32 @@ module pipelined_core (
     assign ex_control_taken =
         ex_branch_taken || ex_jump_taken;
 
-
     // ==========================================================
     // ALU OPERAND B SELECTION
     // ==========================================================
 
     assign ex_alu_b =
-        id_ex_alu_src ?
-            id_ex_imm :
-            ex_forward_b;
 
+        id_ex_alu_src ?
+
+            id_ex_imm :
+
+            ex_forward_b;
 
     // ==========================================================
     // ALU
     // ==========================================================
 
     alu ALU (
+
         .a        (ex_forward_a),
         .b        (ex_alu_b),
         .alu_ctrl (id_ex_alu_control),
+
         .alu_out  (ex_alu_out),
         .zero     (ex_zero)
-    );
 
+    );
 
     // ==========================================================
     // FPU
@@ -487,25 +550,77 @@ module pipelined_core (
     wire [15:0] ex_fpu_result;
 
     fpu FPU (
+
         .enable  (id_ex_fpu_enable),
+
         .a       (ex_forward_a),
         .b       (ex_forward_b),
+
         .opcode  (id_ex_fpu_opcode),
+
         .result  (ex_fpu_result)
+
     );
 
+    // ==========================================================
+    // CRYPTO CO-PROCESSOR
+    // ==========================================================
+    //
+    // ENC:
+    //     crypto_enable = 1
+    //     crypto_dec    = 0
+    //
+    // DEC:
+    //     crypto_enable = 1
+    //     crypto_dec    = 1
+    //
+    // The crypto core is combinational and performs all eight
+    // rounds in the EX stage.
+    //
+    // Operand A is used because ENC/DEC have only one source
+    // register: Rs1.
+    // ==========================================================
+
+    wire [15:0] ex_crypto_result;
+
+    crypto_coproc CRYPTO (
+
+        .data_in (ex_forward_a),
+
+        .enc     (id_ex_crypto_enable &&
+                  !id_ex_crypto_dec),
+
+        .dec     (id_ex_crypto_enable &&
+                  id_ex_crypto_dec),
+
+        .data_out (ex_crypto_result)
+
+    );
 
     // ==========================================================
     // UNIFIED EXECUTION RESULT
+    // ==========================================================
+    //
+    // Priority:
+    //     Crypto
+    //     FPU
+    //     ALU
+    //
+    // ENC/DEC and FPU instructions both use the normal
+    // EX/MEM -> MEM/WB -> WB path.
     // ==========================================================
 
     wire [15:0] ex_result;
 
     assign ex_result =
+
+        id_ex_crypto_enable ?
+            ex_crypto_result :
+
         id_ex_fpu_enable ?
             ex_fpu_result :
-            ex_alu_out;
 
+            ex_alu_out;
 
     // ==========================================================
     // EX/MEM PIPELINE REGISTER
@@ -523,36 +638,42 @@ module pipelined_core (
 
     wire [1:0] ex_mem_wb_select;
 
-
     ex_mem_reg EX_MEM (
-        .clk                   (clk),
-        .rst_n                 (~rst),
 
-        .execution_result_in   (ex_result),
-        .store_data_in         (ex_forward_b),
-        .pc_plus1_in           (id_ex_pc_plus1),
+        .clk                  (clk),
+        .rst_n                (~rst),
 
-        .rd_in                 (id_ex_rd),
+        .execution_result_in  (ex_result),
 
-        .mem_read_in           (id_ex_mem_read),
-        .mem_write_in          (id_ex_mem_write),
-        .reg_write_in          (id_ex_reg_write),
+        // IMPORTANT:
+        // Use forwarded B for store data so that
+        // ALU -> SH forwarding works correctly.
+        .store_data_in        (ex_forward_b),
 
-        .wb_select_in          (id_ex_wb_select),
+        .pc_plus1_in          (id_ex_pc_plus1),
 
-        .execution_result_out  (ex_mem_execution_result),
-        .store_data_out        (ex_mem_store_data),
-        .pc_plus1_out          (ex_mem_pc_plus1),
+        .rd_in                (id_ex_rd),
 
-        .rd_out                (ex_mem_rd),
+        .mem_read_in          (id_ex_mem_read),
+        .mem_write_in         (id_ex_mem_write),
+        .reg_write_in         (id_ex_reg_write),
 
-        .mem_read_out          (ex_mem_mem_read),
-        .mem_write_out         (ex_mem_mem_write),
-        .reg_write_out         (ex_mem_reg_write),
+        .wb_select_in         (id_ex_wb_select),
 
-        .wb_select_out         (ex_mem_wb_select)
+        .execution_result_out (ex_mem_execution_result),
+        .store_data_out       (ex_mem_store_data),
+
+        .pc_plus1_out         (ex_mem_pc_plus1),
+
+        .rd_out               (ex_mem_rd),
+
+        .mem_read_out         (ex_mem_mem_read),
+        .mem_write_out        (ex_mem_mem_write),
+        .reg_write_out        (ex_mem_reg_write),
+
+        .wb_select_out        (ex_mem_wb_select)
+
     );
-
 
     // ==========================================================
     // MEMORY STAGE
@@ -561,17 +682,19 @@ module pipelined_core (
     wire [15:0] mem_read_data;
 
     data_mem DMEM (
+
         .clk        (clk),
 
         .mem_read   (ex_mem_mem_read),
         .mem_write  (ex_mem_mem_write),
 
         .address    (ex_mem_execution_result),
+
         .write_data (ex_mem_store_data),
 
         .read_data  (mem_read_data)
-    );
 
+    );
 
     // ==========================================================
     // MEM/WB PIPELINE REGISTER
@@ -584,30 +707,39 @@ module pipelined_core (
     wire [2:0] mem_wb_rd;
 
     wire       mem_wb_reg_write;
+
     wire [1:0] mem_wb_wb_select;
 
-
     mem_wb_reg MEM_WB (
-        .clk                   (clk),
-        .rst_n                 (~rst),
 
-        .memory_data_in        (mem_read_data),
-        .execution_result_in   (ex_mem_execution_result),
-        .pc_plus1_in           (ex_mem_pc_plus1),
+        .clk                  (clk),
+        .rst_n                (~rst),
 
-        .rd_in                 (ex_mem_rd),
-        .reg_write_in          (ex_mem_reg_write),
-        .wb_select_in          (ex_mem_wb_select),
+        .memory_data_in       (mem_read_data),
 
-        .memory_data_out       (mem_wb_memory_data),
-        .execution_result_out  (mem_wb_execution_result),
-        .pc_plus1_out          (mem_wb_pc_plus1),
+        .execution_result_in  (ex_mem_execution_result),
 
-        .rd_out                (mem_wb_rd),
-        .reg_write_out         (mem_wb_reg_write),
-        .wb_select_out         (mem_wb_wb_select)
+        .pc_plus1_in          (ex_mem_pc_plus1),
+
+        .rd_in                (ex_mem_rd),
+
+        .reg_write_in         (ex_mem_reg_write),
+
+        .wb_select_in         (ex_mem_wb_select),
+
+        .memory_data_out      (mem_wb_memory_data),
+
+        .execution_result_out (mem_wb_execution_result),
+
+        .pc_plus1_out         (mem_wb_pc_plus1),
+
+        .rd_out               (mem_wb_rd),
+
+        .reg_write_out        (mem_wb_reg_write),
+
+        .wb_select_out        (mem_wb_wb_select)
+
     );
-
 
     // ==========================================================
     // WRITEBACK
@@ -617,8 +749,13 @@ module pipelined_core (
         mem_wb_reg_write;
 
     assign wb_write_data =
-        mem_wb_wb_select == 2'b01 ? mem_wb_memory_data :
-        mem_wb_wb_select == 2'b10 ? mem_wb_pc_plus1 :
-                                     mem_wb_execution_result;
+
+        mem_wb_wb_select == 2'b01 ?
+            mem_wb_memory_data :
+
+        mem_wb_wb_select == 2'b10 ?
+            mem_wb_pc_plus1 :
+
+            mem_wb_execution_result;
 
 endmodule
