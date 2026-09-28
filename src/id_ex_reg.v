@@ -11,7 +11,6 @@ module id_ex_reg (
 
     input wire [15:0] rs1_data_in,
     input wire [15:0] rs2_data_in,
-
     input wire [15:0] imm_in,
 
     input wire [2:0] rs1_in,
@@ -36,12 +35,17 @@ module id_ex_reg (
     input wire       fpu_enable_in,
     input wire [3:0] fpu_opcode_in,
 
+    // ----------------------------------------------------------
+    // CRYPTO CONTROL
+    // ----------------------------------------------------------
+    input wire       crypto_enable_in,
+    input wire       crypto_dec_in,
+
     output reg [15:0] pc_out,
     output reg [15:0] pc_plus1_out,
 
     output reg [15:0] rs1_data_out,
     output reg [15:0] rs2_data_out,
-
     output reg [15:0] imm_out,
 
     output reg [2:0] rs1_out,
@@ -64,8 +68,13 @@ module id_ex_reg (
     output reg       jalr_out,
 
     output reg       fpu_enable_out,
-    output reg [3:0] fpu_opcode_out
+    output reg [3:0] fpu_opcode_out,
 
+    // ----------------------------------------------------------
+    // CRYPTO CONTROL
+    // ----------------------------------------------------------
+    output reg       crypto_enable_out,
+    output reg       crypto_dec_out
 );
 
     always @(posedge clk) begin
@@ -77,7 +86,6 @@ module id_ex_reg (
 
             rs1_data_out    <= 16'h0000;
             rs2_data_out    <= 16'h0000;
-
             imm_out         <= 16'h0000;
 
             rs1_out         <= 3'b000;
@@ -101,6 +109,9 @@ module id_ex_reg (
 
             fpu_enable_out  <= 1'b0;
             fpu_opcode_out  <= 4'b0000;
+
+            crypto_enable_out <= 1'b0;
+            crypto_dec_out    <= 1'b0;
 
         end
 
@@ -115,7 +126,6 @@ module id_ex_reg (
 
             rs1_data_out    <= 16'h0000;
             rs2_data_out    <= 16'h0000;
-
             imm_out         <= 16'h0000;
 
             rs1_out         <= 3'b000;
@@ -140,6 +150,9 @@ module id_ex_reg (
             fpu_enable_out  <= 1'b0;
             fpu_opcode_out  <= 4'b0000;
 
+            crypto_enable_out <= 1'b0;
+            crypto_dec_out    <= 1'b0;
+
         end
 
         else begin
@@ -149,7 +162,6 @@ module id_ex_reg (
 
             rs1_data_out    <= rs1_data_in;
             rs2_data_out    <= rs2_data_in;
-
             imm_out         <= imm_in;
 
             rs1_out         <= rs1_in;
@@ -174,8 +186,10 @@ module id_ex_reg (
             fpu_enable_out  <= fpu_enable_in;
             fpu_opcode_out  <= fpu_opcode_in;
 
-        end
+            crypto_enable_out <= crypto_enable_in;
+            crypto_dec_out    <= crypto_dec_in;
 
+        end
     end
 
 endmodule
