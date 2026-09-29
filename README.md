@@ -2,19 +2,20 @@
 
 # 🧠 16-Bit Custom CPU
 
-### A custom 16-bit RISC-V-style processor, built up from a single-cycle core to a fully verified 5-stage pipeline with an integrated IEEE-754 FPU.
+### A custom 16-bit RISC-V-style processor, built up from a single-cycle core to a fully verified 5-stage pipeline with an integrated IEEE-754 FPU and a cryptographic co-processor.
 
 ![Language](https://img.shields.io/badge/HDL-Verilog-blue?style=flat-square)
 ![Simulator](https://img.shields.io/badge/Simulator-Icarus%20Verilog-orange?style=flat-square)
 ![Pipeline](https://img.shields.io/badge/Pipeline-5--Stage-brightgreen?style=flat-square)
 ![FPU](https://img.shields.io/badge/FPU-IEEE--754%20Half--Precision-yellow?style=flat-square)
-![Main Testbench](https://img.shields.io/badge/Main%20Testbench-61%2F61%20Passing-success?style=flat-square)
+![Crypto](https://img.shields.io/badge/Crypto-8--Round%20Feistel-purple?style=flat-square)
+![Main Testbench](https://img.shields.io/badge/Main%20Testbench-81%2F81%20Passing-success?style=flat-square)
 
 </div>
 
 ---
 
-> **TL;DR** — The 5-stage pipelined core (`pipelined_core.v`) is complete: forwarding, load-use hazard detection, branch/jump flushing, and a pipelined FPU are all implemented and pass the main regression testbench, **61/61 checks green**. Next up: the **UVM verification environment** and the **cryptographic co-processor**.
+> **TL;DR** — The 5-stage pipelined core (`pipelined_core.v`) is complete: forwarding, load-use hazard detection, branch/jump flushing, a pipelined FPU, and the new **`ENC` / `DEC` cryptographic co-processor** are all implemented and pass the main regression testbench — **29 tests, 81/81 checks green**. The **UVM environment** is scaffolded but not yet wired to a working DUT.
 
 ## 📑 Table of Contents
 
@@ -23,6 +24,7 @@
 - [Repository Structure](#-repository-structure)
 - [Instruction Set Architecture](#-instruction-set-architecture)
 - [Floating-Point Unit](#-floating-point-unit)
+- [Cryptographic Co-Processor](#-cryptographic-co-processor)
 - [Single-Cycle Processor](#-single-cycle-processor)
 - [Pipelined Processor](#-pipelined-processor)
 - [Hazard Handling](#-hazard-handling)
@@ -46,11 +48,11 @@ This project implements a custom 16-bit instruction set architecture with:
 - ✅ A functionally verified single-cycle processor
 - ✅ A functionally verified 5-stage pipelined processor
 - 🔢 IEEE-754 half-precision FPU (`FADD`, `FMUL`) integrated into both cores
-- ➡️ Data forwarding (`EX/MEM → EX`, `MEM/WB → EX`) for ALU and FPU results
+- 🔐 A 16-bit Feistel-cipher crypto co-processor (`ENC`, `DEC`) integrated into the pipelined core
+- ➡️ Data forwarding (`EX/MEM → EX`, `MEM/WB → EX`) for ALU, FPU, and crypto results
 - ⏸️ Load-use hazard detection with pipeline stalling
 - 🔀 Branch/jump resolution in EX, with IF/ID and ID/EX flushing
-- 🧪 A UVM verification environment in progress
-- 🔐 A cryptographic co-processor on the roadmap
+- 🧪 A UVM verification environment scaffold (in progress)
 
 The processor is developed incrementally, with each stage validated through Verilog simulation using Icarus Verilog.
 
@@ -74,6 +76,10 @@ The processor is developed incrementally, with each stage validated through Veri
 | ↳ FADD | ✅ Verified |
 | ↳ FMUL | ✅ Verified |
 | FPU ↔ CPU integration (single-cycle) | ✅ Verified |
+| Cryptographic co-processor (`crypto_coproc.v`) | ✅ Implemented |
+| ↳ ENC / DEC | ✅ Verified against known vectors (pipelined core) |
+| Crypto ↔ CPU integration (pipelined) | ✅ Verified |
+| Crypto ↔ CPU integration (single-cycle) | ⬜ Not integrated |
 
 #### 5-Stage Pipeline
 
@@ -82,23 +88,18 @@ The processor is developed incrementally, with each stage validated through Veri
 | Pipeline datapath | ✅ Implemented |
 | Pipeline registers `IF/ID` `ID/EX` `EX/MEM` `MEM/WB` | ✅ Implemented |
 | Hazard detection (load-use) | ✅ Implemented and verified |
-| Forwarding unit (ALU / FPU) | ✅ Implemented and verified |
+| Forwarding unit (ALU / FPU / crypto) | ✅ Implemented and verified |
 | Branch / jump handling | ✅ Implemented and verified |
 | Pipelined FPU integration | ✅ Implemented and verified |
+| Pipelined crypto integration | ✅ Implemented and verified |
 
 #### Verification
 
 | Component | Status |
 | :-- | :-- |
-| 🟢 **Main testbench — `pipelined_core_tb.v`** | ✅ **Properly functional** — 22 tests / 61 checks, all passing |
+| 🟢 **Main testbench — `pipelined_core_tb.v`** | ✅ **Properly functional** — 29 tests / 81 checks, all passing |
 | `single_cycle_core_tb.v` | ✅ Functional integration testbench for the single-cycle core |
-
-#### On the Roadmap
-
-| Component | Status |
-| :-- | :-- |
-| UVM verification environment | 🟡 In progress |
-| Cryptographic co-processor | ⬜ Planned |
+| UVM verification environment (`uvm/`) | 🟡 Scaffold only — see [note below](#uvm-environment-scaffold) |
 
 ---
 
@@ -113,8 +114,10 @@ The processor is developed incrementally, with each stage validated through Veri
 │   │   └── pipelined_core.v     ✅ Verified 5-stage pipelined top-level core
 │   │
 │   ├── alu.v
-│   ├── fpu.v
-│   ├── control_unit.v           # Control unit used by both cores
+│   ├── fpu.v                    # IEEE-754 half-precision FADD / FMUL
+│   ├── crypto_coproc.v          # 🔐 ENC / DEC co-processor (key_expander,
+│   │                            #    round_function, inverse_round_function)
+│   ├── control_unit.v           # Control unit used by both cores (incl. crypto controls)
 │   ├── regfile.v
 │   ├── pc.v
 │   ├── immgen.v
@@ -127,7 +130,7 @@ The processor is developed incrementally, with each stage validated through Veri
 │   ├── id_ex_reg.v              # ID/EX pipeline register
 │   ├── ex_mem_reg.v             # EX/MEM pipeline register
 │   ├── mem_wb_reg.v             # MEM/WB pipeline register
-│   ├── forwarding_unit.v        # EX/MEM + MEM/WB forwarding for ALU/FPU operands
+│   ├── forwarding_unit.v        # EX/MEM + MEM/WB forwarding for ALU/FPU/crypto operands
 │   ├── hazard_unit.v            # Load-use hazard detection / stall logic
 │   ├── dff.v                    # Generic parameterized flip-flop utility
 │   │
@@ -137,9 +140,9 @@ The processor is developed incrementally, with each stage validated through Veri
 │
 ├── testbenches/
 │   ├── top_testbench/
-│   │   ├── single_cycle_core_tb.v
-│   │   └── pipelined_core_tb.v  ✅ 22-test self-checking pipeline regression — MAIN TESTBENCH
+│   │   └── pipelined_core_tb.v  ✅ 29-test self-checking pipeline regression — MAIN TESTBENCH
 │   │
+│   ├── single_cycle_core_tb.v   # Single-cycle integration testbench
 │   ├── fpu_tb.v
 │   ├── alu_tb.v
 │   ├── regfile_tb.v
@@ -151,15 +154,9 @@ The processor is developed incrementally, with each stage validated through Veri
 │   ├── instr_mem_tb.v
 │   └── pc_tb.v
 │
-├── uvm/
-│   └── 🧪 UVM verification environment (environment.sv, sequence.sv,
-│       sequencer.sv, package.sv, testbench.sv)
-│
-├── hack/
-│   └── Local simulation artifacts
-│
-└── vcd/
-    └── Local waveform artifacts
+└── uvm/
+    └── 🧪 UVM environment scaffold (environment.sv, sequence.sv,
+        sequencer.sv, package.sv, testbench.sv)
 ```
 
 ---
@@ -230,6 +227,17 @@ Rd = PC + 1
 
 before transferring control to the target address.
 
+### FPU / Crypto Instructions (opcode `110`)
+
+| Instruction | `funct` | Operation |
+| :-: | :-: | :-- |
+| `FADD` | `000` | `Rd = Rs1 + Rs2` (half-precision) |
+| `FMUL` | `001` | `Rd = Rs1 × Rs2` (half-precision) |
+| `ENC`  | `010` | `Rd = Encrypt(Rs1)` |
+| `DEC`  | `011` | `Rd = Decrypt(Rs1)` |
+
+Any other `funct` under opcode `110` is treated as invalid (no register write, no unit enabled).
+
 ---
 
 ## 🔢 Floating-Point Unit
@@ -253,8 +261,6 @@ The implementation includes floating-point sign, exponent, and significand proce
 
 ### FPU Instruction Encoding
 
-FPU instructions use opcode `110`.
-
 <table>
 <tr><th>FADD</th><th>FMUL</th></tr>
 <tr><td>
@@ -275,6 +281,56 @@ e.g. `FMUL R4,R1,R2`
 
 </td></tr>
 </table>
+
+---
+
+## 🔐 Cryptographic Co-Processor
+
+`src/crypto_coproc.v` implements a small **16-bit block Feistel cipher** with 8 rounds. It is purely combinational: both the encrypt and decrypt datapaths are always present, and the `enc` / `dec` inputs select which result is driven onto `data_out` (`0` when neither is asserted).
+
+```text
+data_in [15:0] ──► [ L(8) | R(8) ] ──► 8 × round_function ──► data_out
+                                              ▲
+      MASTER_KEY (16'h1EEE) ─► key_expander ──┘   8 × 16-bit round keys
+```
+
+| Module | Role |
+| :-- | :-- |
+| `key_expander` | Expands the 16-bit master key into a 128-bit key schedule (8 × 16-bit round keys) with xor-shift steps |
+| `round_function` | One Feistel round: `L' = R`, `R' = L ^ ((R ^ K[7:0]) + K[15:8])` |
+| `inverse_round_function` | Exact inverse of a round, used with the key schedule in reverse order |
+| `crypto_coproc` | Top module: 8 forward rounds, 8 inverse rounds, output select |
+
+> The master key (`16'h1EEE`) and the `key_expander` / `round_function` modules are marked **DO NOT MODIFY / DO NOT CHANGE** in the source.
+
+### Pipeline integration
+
+- Decoded in ID by `control_unit.v` (`crypto_enable`, `crypto_dec`), carried through `ID/EX`.
+- Executed in EX alongside the ALU and FPU; the result is muxed into the normal `EX/MEM → MEM/WB → writeback` path.
+- `ENC` / `DEC` are **single-source** instructions: only `Rs1` is read, and instruction bits `[5:3]` are reserved (must be `000`) and are **not** treated as `Rs2`.
+- Crypto results participate fully in forwarding, including as `SH` store data.
+
+### Crypto Instruction Encoding
+
+```text
+[15]    = 0
+[14:12] = 110
+[11:9]  = Rd
+[8:6]   = Rs1
+[5:3]   = 000
+[2:0]   = funct     (010 = ENC, 011 = DEC)
+```
+
+### Known-answer vectors (used in the testbench)
+
+| Plaintext | `ENC` output |
+| :-: | :-: |
+| `0000` | `06FB` |
+| `0001` | `C371` |
+| `1234` | `6479` |
+| `ABCD` | `D864` |
+
+> ⚠️ The co-processor is currently integrated into the **pipelined core only**. The single-cycle core does not decode `ENC` / `DEC`.
 
 ---
 
@@ -330,7 +386,7 @@ Fetch    Decode   Execute   Memory   Writeback
 <br>
 
 - Instruction decoding via `control_unit.v`
-- Register-field extraction per opcode
+- Register-field extraction per opcode (crypto reads `Rs1` only)
 - Register file reads
 - Immediate generation
 - Hazard-unit stall/flush decisions
@@ -342,6 +398,7 @@ Fetch    Decode   Execute   Memory   Writeback
 
 - ALU operations
 - FPU operations (`FADD` / `FMUL`)
+- Crypto operations (`ENC` / `DEC`)
 - Operand forwarding from `EX/MEM` and `MEM/WB`
 - Branch comparison and target calculation
 - JAL/JALR target calculation (with forwarding into JALR's base register)
@@ -360,8 +417,7 @@ Fetch    Decode   Execute   Memory   Writeback
 <summary><strong>WB — Writeback</strong></summary>
 <br>
 
-- ALU result
-- FPU result
+- ALU / FPU / crypto result
 - Load result
 - JAL/JALR link address (`PC + 1`)
 </details>
@@ -375,7 +431,7 @@ Fetch    Decode   Execute   Memory   Writeback
 | `ex_mem_reg.v` | EX ↔ MEM |
 | `mem_wb_reg.v` | MEM ↔ WB |
 
-Each carries the relevant datapath values and control signals forward, and supports the stall/flush signals needed for hazard handling.
+Each carries the relevant datapath values and control signals forward (including the FPU and crypto controls), and supports the stall/flush signals needed for hazard handling.
 
 ---
 
@@ -397,7 +453,7 @@ EX/MEM → EX
 MEM/WB → EX
 ```
 
-Both ALU and FPU operands participate in the forwarding network, and store-data for `SH` is also forwarded.
+ALU, FPU, and crypto results all participate in the forwarding network, and store-data for `SH` is also forwarded.
 
 ### ⏸️ Load-Use Hazard Detection
 
@@ -420,28 +476,28 @@ Branches and jumps are resolved in the EX stage. On a taken branch or jump, the 
 
 This logic is implemented directly in `pipelined_core.v` via the unified `ex_control_taken` signal.
 
-### 🔢 Pipelined FPU Integration
+### 🔢🔐 Pipelined FPU and Crypto Integration
 
 ```text
-                ID/EX
-                  │
-         ┌────────┴────────┐
-         ▼                 ▼
-        ALU               FPU
-         │                 │
-         └────────┬────────┘
-                   ▼
-                EX/MEM
+                     ID/EX
+                       │
+         ┌─────────────┼─────────────┐
+         ▼             ▼             ▼
+        ALU           FPU         CRYPTO
+         │             │             │
+         └─────────────┼─────────────┘
+                       ▼
+                    EX/MEM
 ```
 
-`FADD`/`FMUL` results proceed through the same `EX/MEM → MEM/WB → writeback` path used for other execution results, and participate in the forwarding network like any other result.
+`FADD`/`FMUL`/`ENC`/`DEC` results proceed through the same `EX/MEM → MEM/WB → writeback` path used for other execution results, and participate in the forwarding network like any other result.
 
 ---
 
 ## 🧪 Verification
 
 ### Single-Cycle Integration Tests
-`testbenches/top_testbench/single_cycle_core_tb.v`
+`testbenches/single_cycle_core_tb.v`
 
 | Test | Covers |
 | :-: | :-- |
@@ -469,44 +525,52 @@ PASS: 0.0 * 2.0 = 0.0
 ### 🟢 Pipelined Core Integration Tests — Main Testbench
 `testbenches/top_testbench/pipelined_core_tb.v`
 
-Fully self-checking (`check_reg` / `check_mem` tasks with expected values), covering **22 scenarios**:
+Fully self-checking (`check_reg` / `check_mem` tasks with expected values), covering **29 scenarios**:
 
 | # | Test | | # | Test |
 | :-: | :-- | :-: | :-: | :-- |
-| 1 | R-type arithmetic / logical | | 12 | BNE taken |
-| 2 | R-type shift operations | | 13 | BLT taken |
-| 3 | Signed SLT / SLTI | | 14 | BGE taken |
-| 4 | Immediate arithmetic / logical | | 15 | Branch forwarding from ALU result |
-| 5 | Immediate shift operations | | 16 | JAL |
-| 6 | SH / LH + address forwarding | | 17 | JALR direct target |
-| 7 | EX/MEM + MEM/WB ALU forwarding | | 18 | JALR + target forwarding |
-| 8 | Load-use hazard | | 19 | FPU pipeline + forwarding |
-| 9 | Load-to-branch hazard | | 20 | FPU arithmetic cases |
-| 10 | BEQ taken | | 21 | FPU negative / zero cases |
-| 11 | BEQ not taken | | 22 | ALU result → SH store-data forwarding |
+| 1 | R-type arithmetic / logical | | 16 | JAL |
+| 2 | R-type shift operations | | 17 | JALR direct target |
+| 3 | Signed SLT / SLTI | | 18 | JALR + target forwarding |
+| 4 | Immediate arithmetic / logical | | 19 | FPU pipeline + forwarding |
+| 5 | Immediate shift operations | | 20 | FPU arithmetic cases |
+| 6 | SH / LH + address forwarding | | 21 | FPU negative / zero cases |
+| 7 | EX/MEM + MEM/WB ALU forwarding | | 22 | ALU → SH store-data forwarding |
+| 8 | Load-use hazard | | 23 | 🔐 Crypto `ENC` known vectors |
+| 9 | Load-to-branch hazard | | 24 | 🔐 Crypto `DEC` known vectors |
+| 10 | BEQ taken | | 25 | 🔐 `ENC → DEC` forwarding |
+| 11 | BEQ not taken | | 26 | 🔐 ALU → `ENC` forwarding |
+| 12 | BNE taken | | 27 | 🔐 `ENC` → ALU forwarding |
+| 13 | BLT taken | | 28 | 🔐 `ENC` → `SH` store-data forwarding |
+| 14 | BGE taken | | 29 | 🔐 `DEC` → `SH` store-data forwarding |
+| 15 | Branch forwarding from ALU result | | | |
 
-Latest simulation result:
+Latest simulation result (Icarus Verilog 12.0):
 
 ```text
 FULL 16-BIT PIPELINED CPU REGRESSION SUMMARY
 ============================================================
-PASS COUNT = 61
+PASS COUNT = 81
 FAIL COUNT = 0
 ALL PIPELINE REGRESSION TESTS PASSED
 ============================================================
 ```
 
+### UVM Environment Scaffold
+
+`uvm/` contains an auto-generated-style UVM skeleton (environment, virtual sequencer/sequence, package, top-level testbench) targeting the **single-cycle core**. It is **not yet runnable**: the interface/agent/driver/monitor/scoreboard/test-harness files it references (`single_cycle_core_if_*`, `single_cycle_core_th`, `single_cycle_core_test`, …) are not in the repository yet. Completing these is the next verification milestone.
+
 ---
 
 ## ⚙️ Building and Simulation
 
-The project is simulated using **Icarus Verilog**. The two top-level core testbenches are the entry points for exercising the FPU, ALU, hazard, and forwarding logic end-to-end.
+The project is simulated using **Icarus Verilog**. The two top-level core testbenches are the entry points for exercising the FPU, ALU, crypto, hazard, and forwarding logic end-to-end. Run all commands from the repository root.
 
 ### Single-Cycle Core
 
 ```bash
 iverilog -o single_cycle_tb.vvp \
-  testbenches/top_testbench/single_cycle_core_tb.v \
+  testbenches/single_cycle_core_tb.v \
   src/single_cycle_core.v \
   src/pc.v \
   src/regfile.v \
@@ -536,6 +600,7 @@ iverilog -o pipelined_tb.vvp \
   src/immgen.v \
   src/instr_mem.v \
   src/fpu.v \
+  src/crypto_coproc.v \
   src/if_id_reg.v \
   src/id_ex_reg.v \
   src/ex_mem_reg.v \
@@ -546,7 +611,7 @@ iverilog -o pipelined_tb.vvp \
 vvp pipelined_tb.vvp
 ```
 
-Both testbenches print `PASS`/`FAIL` for each checked instruction sequence and a final regression summary.
+Both testbenches print `PASS`/`FAIL` for each checked instruction sequence; the pipelined testbench ends with a final regression summary.
 
 ---
 
@@ -559,17 +624,24 @@ Both testbenches print `PASS`/`FAIL` for each checked instruction sequence and a
 [x] Task 4 — 5-stage pipelined processor
     [x] Pipeline registers (IF/ID, ID/EX, EX/MEM, MEM/WB)
     [x] Hazard detection (load-use)
-    [x] Forwarding (ALU + FPU operands, store data)
+    [x] Forwarding (ALU + FPU + crypto operands, store data)
     [x] Branch/jump flushing
     [x] Pipelined FPU integration
-    [x] Self-checking main pipeline regression testbench (22 tests / 61 checks)
+    [x] Self-checking main pipeline regression testbench
+[x] Task 6 — Cryptographic co-processor (ENC / DEC)
+    [x] 8-round Feistel co-processor with key expansion
+    [x] ISA encoding, decode, and pipeline integration
+    [x] Known-vector and forwarding tests (29 tests / 81 checks total)
 ```
 
 #### 🔜 Up Next
 
 ```text
 [ ] Task 5 — UVM verification environment
-[ ] Task 6 — Cryptographic co-processor
+    [x] Environment / sequencer / sequence / package scaffold
+    [ ] Interface, agent, driver, monitor, scoreboard, test harness
+    [ ] Runnable UVM test
+[ ] Optional — integrate ENC / DEC into the single-cycle core
 ```
 
 ---
@@ -583,15 +655,16 @@ The final processor is intended to demonstrate:
 | 🏗️ Custom ISA design | 🧮 RTL datapath design | 🎛️ Control-unit design |
 | ➕ Integer ALU architecture | 🔢 IEEE-754 floating-point arithmetic | 🚀 Pipeline architecture |
 | 🧯 Data hazard resolution | 🔀 Control hazard handling | ➡️ Forwarding |
-| 🧪 Processor verification | 🔌 Hardware/software interface design | |
+| 🔐 Hardware crypto acceleration | 🧪 Processor verification | 🔌 Hardware/software interface design |
 
-The design is being developed incrementally so that each architectural stage can be verified before moving to the next. With the 5-stage pipeline now implemented — forwarding, hazard, and control-flow complete — and passing its main testbench, the focus moves on to the **UVM verification environment** and the **cryptographic co-processor**.
+The design is being developed incrementally so that each architectural stage can be verified before moving to the next. With the 5-stage pipeline — forwarding, hazards, control flow, FPU, and crypto co-processor — complete and passing its main testbench, the focus moves on to finishing the **UVM verification environment**.
 
 ---
 
 ## 🧰 Tools
 
 - Verilog HDL
+- SystemVerilog / UVM (scaffold)
 - Icarus Verilog
 - Xilinx Vivado
 - GTKWave / FST waveform analysis
