@@ -15,7 +15,7 @@
 
 ---
 
-> **TL;DR** — The 5-stage pipelined core (`pipelined_core.v`) is complete: forwarding, load-use hazard detection, branch/jump flushing, a pipelined FPU, and the new **`ENC` / `DEC` cryptographic co-processor** are all implemented and pass the main regression testbench — **29 tests, 81/81 checks green**. The **UVM environment** is scaffolded but not yet wired to a working DUT.
+> **TL;DR** — The 5-stage pipelined core (`pipelined_core.v`) is complete: forwarding, load-use hazard detection, branch/jump flushing, a pipelined FPU, and the new **`ENC` / `DEC` cryptographic co-processor** are all implemented and pass the main regression testbench — **29 tests, 81/81 checks green**. 
 
 ## 📑 Table of Contents
 
